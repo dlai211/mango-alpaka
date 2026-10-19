@@ -1,0 +1,32 @@
+[build-system]
+requires = ["scikit-build-core>=0.8", "pybind11>=2.11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "mango-alpaka"
+version = "0.1.0"
+description = "Alpaka kernels for MANGO: the monotone cubic-Hermite marginal spline"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "MANGO — University of Oregon workstream" },
+]
+classifiers = [
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "numpy", "torch"]
+
+[tool.scikit-build]
+# CMake is the supported build path (see README); this section exists so the
+# project also installs with `pip install .` when scikit-build-core is present.
+wheel.packages = []
+cmake.version = ">=3.24"
+cmake.args = ["-DMANGO_ENABLE_CUDA=ON", "-DMANGO_ENABLE_OMP2=ON"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

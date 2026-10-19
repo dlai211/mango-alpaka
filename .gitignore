@@ -1,0 +1,19 @@
+# Build output
+build/
+build_*/
+*.pyd
+*.dll
+*.lib
+*.obj
+*.exp
+*.ilk
+*.pdb
+
+# Vendored dependency — fetch with scripts/fetch_dependencies.sh
+third_party/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
