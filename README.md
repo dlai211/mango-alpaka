@@ -9,6 +9,22 @@ read-only reference.
 
 ---
 
+## Documentation
+
+| file | read it for |
+|---|---|
+| **`Intro.md`** | what this is and why — orientation, the maths in one page, glossary |
+| **`PRD.md`** | requirements, acceptance criteria, scope, risks, status |
+| **`RUNBOOK.md`** | building it, and the five toolchain traps |
+| **`REPRODUCTION_COMMANDS.md`** | exact commands to regenerate every number |
+| **`RESULTS.md`** | the measurements and what they do and do not claim |
+| `docs/INTERFACE_CONTRACT.md` | the frozen Python ↔ C++ contract (Deliverable C) |
+
+New here? Start with `Intro.md`. Rebuilding? `RUNBOOK.md`. Reproducing a
+number? `REPRODUCTION_COMMANDS.md`.
+
+---
+
 ## What is here
 
 ```
