@@ -282,6 +282,34 @@ code, .cmd {
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .seg button:focus-visible { outline: 2px solid var(--flow); outline-offset: 1px; }
 
+/* --- code pair ------------------------------------------------------------- */
+
+.code-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 4px; }
+.code-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+  min-width: 0;
+}
+.code-panel .head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+}
+.code-panel .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.code-panel pre {
+  margin: 0; padding: 12px 14px; overflow-x: auto;
+  font-family: var(--mono); font-size: 12px; line-height: 1.6;
+  color: var(--ink);
+}
+.code-panel .c { color: var(--muted); }
+
+@media (max-width: 780px) { .code-pair { grid-template-columns: 1fr; } }
+
 /* --- comparison table ------------------------------------------------------ */
 
 .table-scroll { overflow-x: auto; }
@@ -657,10 +685,137 @@ footer p { margin: 0 0 6px; }
   </div>
 </section>
 
-<!-- ============================================================== 05 MEASURED -->
-<section id="measured">
+<!-- ============================================================== 05 SAMPLE -->
+<section id="sample">
   <div class="sec-head">
     <div class="sec-num">05</div>
+    <div>
+      <h2>One sample, traced through both</h2>
+      <p class="sec-sub">One condition and one input value, run through the PyTorch marginal and the Alpaka kernel. Every number below is produced by <code>tests/trace_one_sample.py</code> against the trained <code>gg_ttbar</code> checkpoint.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>input</th><th>value</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>√ŝ</td><td class="num">400 GeV</td><td>z = 0.024390</td></tr>
+          <tr><td>raw logits, first 8 of 64</td><td class="num">−0.2765 … 0.2864</td><td>from the trained MLP, not test weights</td></tr>
+          <tr><td>u</td><td class="num">0.73140000</td><td>the same value to both</td></tr>
+          <tr><td>selected bin</td><td class="num">24 of 32</td><td>count of interior width-knots below u</td></tr>
+          <tr><td>width, height</td><td class="num">0.030101007506 · 0.030288879341</td><td>bin 24</td></tr>
+          <tr><td>x₀ (lower height knot)</td><td class="num">0.777269411021</td><td>bin 24</td></tr>
+          <tr><td>slopes at the bin ends</td><td class="num">1.036547621992 · 0.994217936886</td><td>d[24], d[25]</td></tr>
+          <tr><td>t within the bin</td><td class="num">0.005583301535</td><td>(u − u₀) / width</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="margin-top:22px">
+    <p class="sec-sub" style="margin-bottom:12px"><strong>Forward.</strong> The same seven operations, once in Python with tensor ops, once in C++ with per-thread arrays.</p>
+    <div class="code-pair">
+      <div class="code-panel">
+        <div class="head"><span class="dot" style="background:var(--flow)"></span>PyTorch · nf/conditional_cubic_1d.py</div>
+<pre><span class="c"># parameters from the conditioning MLP</span>
+widths, heights, cumw, cumh = self._params(cond)
+d = self._derivatives(widths, heights)
+
+idx = (u[:, None] &gt;= cumw[:, 1:]).sum(-1).clamp_max(n_bins - 1)
+width  = widths.gather(1, idx[:, None]).squeeze(1)
+height = heights.gather(1, idx[:, None]).squeeze(1)
+u0     = cumw[:, :-1].gather(1, idx[:, None]).squeeze(1)
+x0     = cumh[:, :-1].gather(1, idx[:, None]).squeeze(1)
+d0, d1 = d[:, :-1].gather(...), d[:, 1:].gather(...)
+
+t = ((u - u0) / width).clamp(0, 1)
+x, dx_dt = self._hermite(t, x0, height, width, d0, d1)
+logabsdet = torch.log(dx_dt.clamp_min(tiny)) - torch.log(width)</pre>
+      </div>
+      <div class="code-panel">
+        <div class="head"><span class="dot" style="background:var(--kernel)"></span>C++ · include/kernels/cubic_spline_1d.hpp</div>
+<pre><span class="c">// parameters from the same raw logits</span>
+T width[N_BINS], height[N_BINS];
+T cumw[N_BINS + 1], cumh[N_BINS + 1], d[N_BINS + 1];
+prepare&lt;T, N_BINS&gt;(raw, min_w, min_h,
+                   width, height, cumw, cumh, d);
+
+int idx = bin_index&lt;T, N_BINS&gt;(value, cumw);
+T const w  = width[idx];
+T const h  = height[idx];
+T const y0 = cumh[idx];
+
+T const t = clamp01((value - cumw[idx]) / w);
+
+T xv = T(0), dxdt = T(0);
+hermite(t, y0, h, w, d[idx], d[idx + 1], xv, dxdt);
+logabsdet[i] = std::log(dxdt) - std::log(w);</pre>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:22px">
+    <p class="sec-sub" style="margin-bottom:12px"><strong>Inverse.</strong> No closed form, so both solve for t inside the selected bin.</p>
+    <div class="code-pair">
+      <div class="code-panel">
+        <div class="head"><span class="dot" style="background:var(--flow)"></span>PyTorch · 40 bisection steps, then Newton</div>
+<pre>low, high = torch.zeros_like(x), torch.ones_like(x)
+for _ in range(self.inverse_iterations):
+    mid = (low + high) * 0.5
+    x_mid, _ = self._hermite(mid, x0, height, width, d0, d1)
+    low  = torch.where(x_mid &lt; x, mid, low)
+    high = torch.where(x_mid &lt; x, high, mid)
+t = (low + high) * 0.5
+
+x_t, dx_dt = self._hermite(t, x0, height, width, d0, d1)
+t = (t - (x_t - x) / dx_dt.clamp_min(tiny)).clamp(0, 1)
+
+u = (u0 + width * t).clamp(0.0, 1.0)</pre>
+      </div>
+      <div class="code-panel">
+        <div class="head"><span class="dot" style="background:var(--kernel)"></span>Alpaka · the same loop, per thread</div>
+<pre>T low = T(0), high = T(1);
+for (int it = 0; it &lt; inverse_iterations; ++it) {
+    T const mid = (low + high) * T(0.5);
+    T xm = T(0), dxm = T(0);
+    hermite(mid, y0, h, w, d[idx], d[idx + 1], xm, dxm);
+    if (xm &lt; target) { low = mid; } else { high = mid; }
+}
+T t = (low + high) * T(0.5);
+
+T xt = T(0), dxt = T(0);
+hermite(t, y0, h, w, d[idx], d[idx + 1], xt, dxt);
+t = clamp01(t - (xt - target) / dxt);
+
+u[i] = clamp01(u0 + w * t);</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-scroll" style="margin-top:24px">
+    <table>
+      <thead>
+        <tr><th>output</th><th>PyTorch</th><th>Alpaka</th><th>|difference|</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>x</td><td class="num">0.777443570828</td><td class="num">0.777443570828</td><td class="num win">0.0e+00</td></tr>
+        <tr><td>log |dx/du|</td><td class="num">0.035373666279</td><td class="num">0.035373666279</td><td class="num win">0.0e+00</td></tr>
+        <tr><td>u recovered</td><td class="num">0.731400000000</td><td class="num">0.731400000000</td><td class="num win">0.0e+00</td></tr>
+        <tr><td>inverse log |dx/du|</td><td class="num">0.035373666279</td><td class="num">0.035373666279</td><td class="num win">4.4e-16</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <strong>How close is that?</strong> Identical to every printed digit on three of four outputs; the fourth differs in the last bit of a 64-bit float — one unit in the last place, from a different order of summation. The full sweep over 5 000 points, both dtypes and all three backends is in <code>tests/test_cubic_spline_parity.py</code>.
+  </div>
+</section>
+
+<!-- ============================================================== 06 MEASURED -->
+<section id="measured">
+  <div class="sec-head">
+    <div class="sec-num">06</div>
     <div>
       <h2>Where it wins, and where it does not</h2>
       <p class="sec-sub">Speedup over PyTorch, same GPU, same dtype, like-for-like on the spline. Above the line the kernel is faster; below it, slower. Hover any point.</p>
