@@ -97,7 +97,13 @@ marginal costs the same at batch size 1 and batch size 10 000:
 
 Those times are **launch overhead**, not compute. The Alpaka kernel evaluates
 each element end to end in a single launch, which is why the inverse is about
-**12× faster at N=1** and stays ~10× faster at N=50 000.
+**124× faster at N=1** — and only **3.2× faster at N=50 000**, where the
+arithmetic finally matters more than the launches.
+
+The forward is a different story: at N ≥ 10 000 the kernel is currently
+*slower* than PyTorch, because it computes in `float64` (1/32 rate on a
+consumer GPU) and copies per call. Fixing that is the next kernel task, and it
+is the honest reason the headline number is not simply "10×".
 
 ## 5. Repository map
 

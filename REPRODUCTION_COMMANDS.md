@@ -215,12 +215,20 @@ hard bound** for parity.
 | cuda | sample | 3.68 ms | 3.70 ms | 13.1 ms |
 | cuda | log_density | 69.8 ms | 68.7 ms | 78.8 ms |
 
-### Before/after
+### Before/after (both sides on the same GPU, 2 marginal calls)
 
-| N | torch fwd | alpaka fwd | torch inv | alpaka inv | inv speedup |
-|---:|---:|---:|---:|---:|---:|
-| 1 | 1.30 ms | 1.21 ms | 16.09 ms | 1.35 ms | 11.9× |
-| 100 | 2.28 ms | 1.58 ms | 25.48 ms | 1.64 ms | 15.5× |
-| 1 000 | 5.19 ms | 2.18 ms | 28.65 ms | 2.30 ms | 12.5× |
-| 10 000 | 30.0 ms | 6.50 ms | 69.4 ms | 7.22 ms | 9.6× |
-| 50 000 | 193.2 ms | 29.3 ms | 306.1 ms | 29.0 ms | 10.6× |
+| N | torch f32 inv | Alpaka inv | inv speedup | torch f32 fwd | Alpaka fwd | fwd speedup |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 72.1 ms | 0.58 ms | **124×** | 4.10 ms | 0.47 ms | 8.7× |
+| 100 | 74.1 ms | 0.92 ms | 81× | 4.25 ms | 0.70 ms | 6.1× |
+| 1 000 | 71.3 ms | 1.53 ms | 47× | 5.54 ms | 1.30 ms | 4.3× |
+| 10 000 | 70.4 ms | 6.04 ms | 12× | 4.25 ms | 6.78 ms | 0.6× |
+| 50 000 | 74.6 ms | 23.0 ms | **3.2×** | 12.87 ms | 22.5 ms | 0.6× |
+
+The forward is **slower** in the kernel above N≈10 000. This is a known
+regression, not a measurement error: the kernel is `float64` and copies per
+call. See `RESULTS.md` §2.
+
+> An earlier revision of this table compared PyTorch on the **CPU** against the
+> kernel on the **GPU**, inflating the small-N speedups by about an order of
+> magnitude. The script now asserts that both run on the same device.

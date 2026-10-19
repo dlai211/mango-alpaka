@@ -105,16 +105,20 @@ is free and the launch cost is everything. The inverse is worse: it runs 40
 bisection iterations per element, so `log_density` costs 65.9 ms at N=1 and
 78.8 ms at N=50 000.
 
-End to end through the Python binding (both columns include host↔device copies):
+End to end through the Python binding, **both sides on the same GPU**
+(an earlier comparison accidentally ran torch on the CPU — see `RESULTS.md` §2):
 
-| N | torch forward | Alpaka forward | speedup | torch inverse | Alpaka inverse | speedup |
-|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 1.30 ms | 1.21 ms | 1.1× | 16.09 ms | 1.35 ms | **11.9×** |
-| 1 000 | 5.19 ms | 2.18 ms | 2.4× | 28.65 ms | 2.30 ms | **12.5×** |
-| 50 000 | 193.2 ms | 29.3 ms | 6.6× | 306.1 ms | 29.0 ms | **10.6×** |
+| N | inverse speedup | forward speedup | combined |
+|---:|---:|---:|---:|
+| 1 | **124×** | 8.7× | — |
+| 1 000 | 47× | 4.3× | **27×** |
+| 10 000 | 12× | 0.6× | **5.8×** |
+| 50 000 | 3.2× | 0.6× | **1.9×** |
 
-The inverse gain is roughly flat across batch sizes, which is what removing a
-fixed per-call cost looks like.
+The inverse win shrinks as N grows because PyTorch's cost is a fixed 40-launch
+bisection loop while the kernel does real arithmetic. The forward is currently
+a **regression above N≈10 000**: the kernel is `float64` (1/32 rate on a
+consumer GPU) and copies per call.
 
 ---
 

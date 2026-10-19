@@ -61,46 +61,71 @@ That asymmetry is the whole opportunity.
 
 ---
 
-## 2. The Alpaka kernel removes it
+## 2. The Alpaka kernel: where it wins and where it does not
 
-`tests/benchmark_kernel_vs_reference.py`, dim=2, `float64`, end to end through
-the Python binding. Both columns include the host↔device copies the C++ launcher
-performs, so this is not a kernel-only comparison.
+`tests/benchmark_kernel_vs_reference.py`, dim=2 (two marginal calls), **both
+sides on the same GPU**, end to end through the Python binding. Both columns
+include the host↔device copies the C++ launcher performs.
 
-| N | torch forward | Alpaka forward | speedup | torch inverse | Alpaka inverse | speedup |
-|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 1.30 ms | 1.21 ms | 1.1× | 16.09 ms | **1.35 ms** | **11.9×** |
-| 100 | 2.28 ms | 1.58 ms | 1.4× | 25.48 ms | 1.64 ms | **15.5×** |
-| 1 000 | 5.19 ms | 2.18 ms | 2.4× | 28.65 ms | 2.30 ms | **12.5×** |
-| 10 000 | 30.0 ms | 6.50 ms | 4.6× | 69.4 ms | 7.22 ms | **9.6×** |
-| 50 000 | 193.2 ms | 29.3 ms | 6.6× | 306.1 ms | 29.0 ms | **10.6×** |
+> **Correction.** An earlier revision compared PyTorch running on the **CPU**
+> against the kernel on the **GPU**, because the benchmark never moved the
+> torch model to the device. That inflated every speedup by roughly an order of
+> magnitude at small N. The device is now asserted in the script, and the table
+> below is a same-device comparison.
 
-### Reading this honestly
+### Inverse (`log_density`) — the win
 
-**The inverse speedup is roughly flat in N** — 11.9× at one point, 15.5× at a
-hundred, 10.6× at fifty thousand. Removing a fixed per-call cost produces a
-flat curve; making arithmetic faster would produce a curve that shrinks as the
-problem grows. This is the signature we were looking for.
+| N | torch f32 | Alpaka | speedup | torch f64 | speedup |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 72.1 ms | **0.58 ms** | **124×** | 74.6 ms | 129× |
+| 100 | 74.1 ms | 0.92 ms | 81× | 71.6 ms | 78× |
+| 1 000 | 71.3 ms | 1.53 ms | 47× | 72.7 ms | 47× |
+| 10 000 | 70.4 ms | 6.04 ms | 12× | 74.5 ms | 12× |
+| 50 000 | 74.6 ms | 23.0 ms | **3.2×** | 110.5 ms | 4.8× |
 
-**The forward speedup grows and then flattens** (1.1× → 6.6×). At N=1 the
-Alpaka path is 1.21 ms, which is essentially our *own* launcher's fixed cost:
-four host buffers, four device buffers and a synchronise, per call. The kernel
-is not the expensive part at that size. A caller-owned-buffer interface would
-cut this and is the obvious next optimisation.
+PyTorch's inverse cost is flat at ~72 ms regardless of batch — 40 bisection
+iterations, each a handful of launches. The kernel's cost grows with N because
+it is doing the arithmetic. **The speedup therefore falls as N rises**: 124× at
+one point, 3.2× at fifty thousand.
 
-**At N=50 000 the forward cost is real.** 29.3 ms of work against 193 ms, and
-the gap would narrow further with a stream-based interface.
+### Forward (`sample`) — the regression
 
-### What is not claimed
+| N | torch f32 | Alpaka | speedup | torch f64 | speedup |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 4.10 ms | **0.47 ms** | **8.7×** | 4.41 ms | 9.3× |
+| 100 | 4.25 ms | 0.70 ms | 6.1× | 4.18 ms | 6.0× |
+| 1 000 | 5.54 ms | 1.30 ms | 4.3× | 4.61 ms | 3.5× |
+| 10 000 | 4.25 ms | 6.78 ms | **0.6×** | 8.97 ms | 1.3× |
+| 50 000 | 12.87 ms | 22.5 ms | **0.6×** | 55.9 ms | 2.5× |
 
-- This is **one marginal per call**. The pipeline evaluates `dim` marginals and
-  a copula; the end-to-end gain on a full model is smaller and unmeasured.
-- These are **inference-side** operations. Training was not benchmarked.
-- The comparison is against **PyTorch eager**, not against a tuned baseline.
-  `torch.compile` might close some of the gap for the forward; it cannot remove
-  the 40-launch bisection loop without fusing it, which is what the kernel does.
-- One GPU, one machine. No claim about portability of the *numbers*, only of
-  the code.
+**At N ≥ 10 000 the kernel is slower than PyTorch at the forward.** PyTorch's
+forward is a handful of well-vectorised float32 operations with almost no
+launch cost to amortise; the kernel evaluates in `float64`, recomputes all 32
+bins per element, and pays a host↔device copy. On a consumer GPU `float64` runs
+at 1/32 of the `float32` rate, so the precision choice alone is expensive.
+
+### What a full step looks like
+
+A marginal evaluation step does both: sample, then score. Summing the two
+columns at pipeline-relevant sizes:
+
+| N | torch f32 (fwd+inv) | Alpaka (fwd+inv) | combined |
+|---:|---:|---:|---:|
+| 1 000 | 76.9 ms | 2.83 ms | **27×** |
+| 10 000 | 74.7 ms | 12.8 ms | **5.8×** |
+| 50 000 | 87.5 ms | 45.5 ms | **1.9×** |
+
+The inverse dominates the total, so the win survives — but it shrinks quickly.
+At the pipeline's training batch (32 768 points) expect roughly **2.5–4×**, not
+the 10× that the incorrect comparison suggested.
+
+### What is claimed
+
+- The kernel removes the fixed cost of the bisection loop: **124× at N=1** on
+  the inverse, falling to 3.2× at N=50 000.
+- A combined marginal step is **5.8×** faster at N=10 000 and **1.9×** at
+  N=50 000, single-process, `float64`.
+- Nothing about the forward at large N: it is **currently a regression**.
 
 ---
 

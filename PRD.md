@@ -119,13 +119,20 @@ Deliverable B is accepted when:
 
 1. the kernel reproduces the PyTorch marginal to 1e-12 on all enabled backends
    — **met, 12/12 tests**;
-2. the fixed per-call cost is measured before and after — **met**:
+2. the fixed per-call cost is measured before and after, **on the same device**
+   — **met**:
 
-   | N | torch inverse | Alpaka inverse | speedup |
-   |---:|---:|---:|---:|
-   | 1 | 16.09 ms | 1.35 ms | **11.9×** |
-   | 1 000 | 28.65 ms | 2.30 ms | **12.5×** |
-   | 50 000 | 306.1 ms | 29.0 ms | **10.6×** |
+   | N | torch inverse (CUDA, f32) | Alpaka inverse | speedup | combined step |
+   |---:|---:|---:|---:|---:|
+   | 1 | 72.1 ms | 0.58 ms | **124×** | — |
+   | 1 000 | 71.3 ms | 1.53 ms | **47×** | 27× |
+   | 10 000 | 70.4 ms | 6.04 ms | **12×** | 5.8× |
+   | 50 000 | 74.6 ms | 23.0 ms | **3.2×** | 1.9× |
+
+   The inverse dominates a combined sample+score step, so the win survives, but
+   it falls with batch size. Separately, the **forward is currently a
+   regression above N≈10 000** (0.6×): the kernel is `float64` where PyTorch is
+   `float32`, and it copies per call. Fixing that is the next kernel task.
 
 Deliverable C is accepted when:
 
