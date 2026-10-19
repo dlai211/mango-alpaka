@@ -111,18 +111,18 @@ on the spline (torch's conditioning MLP is excluded from its column — see
 
 | N | inverse | forward | inverse, realistic | forward, realistic |
 |---:|---:|---:|---:|---:|
-| 1 | **130×** | 5.1× | 58× | 2.1× |
-| 1 000 | 38× | 2.0× | 19× | 0.9× |
-| 10 000 | 10× | **0.4×** | 4.4× | **0.2×** |
-| 50 000 | 2.9× | **0.2×** | 1.0× | **0.1×** |
+| 1 | **254×** | 10.4× | 77× | 2.9× |
+| 1 000 | 176× | 7.1× | 60× | 2.4× |
+| 10 000 | 33× | 1.3× | 20× | **0.8×** |
+| 50 000 | 12.7× | **0.6×** | 5.9× | **0.3×** |
 
 "realistic" = MLP in torch → host copy → kernel, which is what an integration
 would do today.
 
-**The inverse is a validated win; the forward is a regression above N ≈ 1 000.**
-The kernel is `float64` (1/32 rate on a consumer GPU) and copies parameters per
-call, while PyTorch's forward is a few vectorised ops. Making the forward
-competitive is the next kernel task — see `PRD.md` §9.
+**The inverse is a validated win at every size. The forward wins below ~10 000
+points and loses above.** The residual forward gap at large N is the host→device
+copy of `raw` plus the MLP in the realistic path; closing it needs device
+pointers (zero-copy), which is an interface change. See `PRD.md` §9.
 
 ---
 

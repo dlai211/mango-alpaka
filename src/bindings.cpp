@@ -1,8 +1,12 @@
 // bindings.cpp — the Python entry points of Deliverable C.
 //
-// This file is compiled by MSVC and includes only pybind11 plus the plain
+// Compiled by MSVC and includes only pybind11 plus the plain
 // mango_interface.hpp. It never sees Alpaka. The kernels live in launcher.cu,
 // built by nvcc, and are linked in as ordinary C++ symbols.
+//
+// float32 and float64 are both accepted. The dtype of `raw` selects the compute
+// precision, every other buffer must match, and the outputs come back in the
+// same dtype.
 
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -18,8 +22,6 @@ namespace py = pybind11;
 
 namespace
 {
-    using Array = py::array_t<double, py::array::c_style | py::array::forcecast>;
-
     mango::Backend parse_backend(std::string const& name)
     {
         if(name == "cpu" || name == "cpu_serial")
@@ -31,8 +33,33 @@ namespace
         throw std::invalid_argument("unknown backend '" + name + "'");
     }
 
+    mango::Precision precision_of(py::array const& array, char const* what)
+    {
+        auto const dtype = array.dtype();
+        if(dtype.is(py::dtype::of<double>()))
+            return mango::Precision::Float64;
+        if(dtype.is(py::dtype::of<float>()))
+            return mango::Precision::Float32;
+        throw std::invalid_argument(
+            std::string(what) + ": expected float32 or float64, got "
+            + py::str(dtype).cast<std::string>());
+    }
+
+    void require_contiguous(py::array const& array, char const* what)
+    {
+        if(!(array.flags() & py::array::c_style))
+            throw std::invalid_argument(std::string(what) + " must be C-contiguous");
+    }
+
+    py::array make_output(mango::Precision precision, py::ssize_t n)
+    {
+        if(precision == mango::Precision::Float64)
+            return py::array_t<double>(n);
+        return py::array_t<float>(n);
+    }
+
     //! Validate the (n, 2*n_bins) raw-parameter array and return n_bins.
-    int check_raw(Array const& raw, int requested_bins)
+    int check_raw(py::array const& raw, int requested_bins)
     {
         if(raw.ndim() != 2)
             throw std::invalid_argument("raw must have shape (n, 2 * n_bins)");
@@ -49,18 +76,20 @@ namespace
 
     struct Outputs
     {
-        py::array_t<double> value;
-        py::array_t<double> logabsdet;
+        py::array value;
+        py::array logabsdet;
+        mango::Precision precision;
     };
 
-    Outputs make_outputs(py::ssize_t n)
-    {
-        return Outputs{py::array_t<double>(n), py::array_t<double>(n)};
-    }
-
     //! Forward map. Returns (x, log|dx/du|).
-    Outputs forward_impl(Array raw, Array u, std::string const& backend, int n_bins)
+    Outputs forward_impl(py::array raw, py::array u, std::string const& backend, int n_bins)
     {
+        require_contiguous(raw, "raw");
+        require_contiguous(u, "u");
+        auto const precision = precision_of(raw, "raw");
+        if(precision_of(u, "u") != precision)
+            throw std::invalid_argument("u must have the same dtype as raw");
+
         auto const n = static_cast<std::int64_t>(raw.shape(0));
         if(u.ndim() != 1 || u.shape(0) != n)
             throw std::invalid_argument("u must have shape (n,) matching raw.shape[0]");
@@ -68,8 +97,9 @@ namespace
         mango::SplineSpec spec;
         spec.n = n;
         spec.n_bins = check_raw(raw, n_bins);
+        spec.precision = precision;
 
-        auto out = make_outputs(n);
+        Outputs out{make_output(precision, n), make_output(precision, n), precision};
         mango::cubic_spline_forward(
             parse_backend(backend),
             raw.data(),
@@ -81,8 +111,14 @@ namespace
     }
 
     //! Inverse map. Returns (u, log|dx/du|) — the reference's `inverse` contract.
-    Outputs inverse_impl(Array raw, Array x, std::string const& backend, int n_bins)
+    Outputs inverse_impl(py::array raw, py::array x, std::string const& backend, int n_bins)
     {
+        require_contiguous(raw, "raw");
+        require_contiguous(x, "x");
+        auto const precision = precision_of(raw, "raw");
+        if(precision_of(x, "x") != precision)
+            throw std::invalid_argument("x must have the same dtype as raw");
+
         auto const n = static_cast<std::int64_t>(raw.shape(0));
         if(x.ndim() != 1 || x.shape(0) != n)
             throw std::invalid_argument("x must have shape (n,) matching raw.shape[0]");
@@ -90,8 +126,9 @@ namespace
         mango::SplineSpec spec;
         spec.n = n;
         spec.n_bins = check_raw(raw, n_bins);
+        spec.precision = precision;
 
-        auto out = make_outputs(n);
+        Outputs out{make_output(precision, n), make_output(precision, n), precision};
         mango::cubic_spline_inverse(
             parse_backend(backend),
             raw.data(),
@@ -102,6 +139,23 @@ namespace
         return out;
     }
 
+    void negate_inplace(py::array& array, mango::Precision precision)
+    {
+        auto const count = array.size();
+        if(precision == mango::Precision::Float64)
+        {
+            auto* data = static_cast<double*>(array.mutable_data());
+            for(py::ssize_t i = 0; i < count; ++i)
+                data[i] = -data[i];
+        }
+        else
+        {
+            auto* data = static_cast<float*>(array.mutable_data());
+            for(py::ssize_t i = 0; i < count; ++i)
+                data[i] = -data[i];
+        }
+    }
+
 } // namespace
 
 PYBIND11_MODULE(mango_alpaka_ext, module)
@@ -110,7 +164,7 @@ PYBIND11_MODULE(mango_alpaka_ext, module)
 
     module.def(
         "forward",
-        [](Array raw, Array u, std::string const& backend, int n_bins) {
+        [](py::array raw, py::array u, std::string const& backend, int n_bins) {
             auto result = forward_impl(raw, u, backend, n_bins);
             return py::make_tuple(result.value, result.logabsdet);
         },
@@ -120,14 +174,14 @@ PYBIND11_MODULE(mango_alpaka_ext, module)
         py::arg("n_bins") = 0,
         R"doc(Forward map u -> x through the conditional cubic-Hermite spline.
 
-raw : (n, 2*n_bins) float64, [width logits | height logits]
-u   : (n,) float64 in [0, 1]
+raw : (n, 2*n_bins), float32 or float64, [width logits | height logits]
+u   : (n,) same dtype, in [0, 1]
 Returns (x, logabsdet) where logabsdet = log|dx/du|.
 )doc");
 
     module.def(
         "inverse",
-        [](Array raw, Array x, std::string const& backend, int n_bins) {
+        [](py::array raw, py::array x, std::string const& backend, int n_bins) {
             auto result = inverse_impl(raw, x, backend, n_bins);
             return py::make_tuple(result.value, result.logabsdet);
         },
@@ -144,7 +198,7 @@ Returns (u, logabsdet) with logabsdet = log|dx/du| at the recovered u.
 
     module.def(
         "sample",
-        [](Array raw, Array u, std::string const& backend, int n_bins) {
+        [](py::array raw, py::array u, std::string const& backend, int n_bins) {
             return forward_impl(raw, u, backend, n_bins).value;
         },
         py::arg("raw"),
@@ -155,14 +209,11 @@ Returns (u, logabsdet) with logabsdet = log|dx/du| at the recovered u.
 
     module.def(
         "log_density",
-        [](Array raw, Array x, std::string const& backend, int n_bins) {
+        [](py::array raw, py::array x, std::string const& backend, int n_bins) {
             // Uniform base: log q(x) = -log|dx/du|, evaluated through the inverse.
             auto result = inverse_impl(raw, x, backend, n_bins);
-            auto logdet = result.logabsdet;
-            auto* data = logdet.mutable_data();
-            for(py::ssize_t i = 0; i < logdet.size(); ++i)
-                data[i] = -data[i];
-            return logdet;
+            negate_inplace(result.logabsdet, result.precision);
+            return result.logabsdet;
         },
         py::arg("raw"),
         py::arg("x"),
@@ -172,7 +223,7 @@ Returns (u, logabsdet) with logabsdet = log|dx/du| at the recovered u.
 
     module.def(
         "sample_and_log_prob",
-        [](Array raw, Array u, std::string const& backend, int n_bins) {
+        [](py::array raw, py::array u, std::string const& backend, int n_bins) {
             auto result = forward_impl(raw, u, backend, n_bins);
             return py::make_tuple(result.value, result.logabsdet);
         },
@@ -199,6 +250,15 @@ Returns (u, logabsdet) with logabsdet = log|dx/du| at the recovered u.
         for(auto const* name : {"cpu_serial", "cpu_omp2_blocks", "cuda"})
             if(mango::backend_available(parse_backend(name)))
                 enabled.emplace_back(name);
+        return enabled;
+    });
+
+    module.def("precisions", []() {
+        std::vector<std::string> enabled;
+        if(mango::precision_available(mango::Precision::Float64))
+            enabled.emplace_back("float64");
+        if(mango::precision_available(mango::Precision::Float32))
+            enabled.emplace_back("float32");
         return enabled;
     });
 }

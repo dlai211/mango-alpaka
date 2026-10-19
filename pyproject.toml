@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "mango-alpaka"
-version = "0.1.0"
+version = "0.2.0"
 description = "Alpaka kernels for MANGO: the monotone cubic-Hermite marginal spline"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -215,13 +215,39 @@ hard bound** for parity.
 | cuda | sample | 3.68 ms | 3.70 ms | 13.1 ms |
 | cuda | log_density | 69.8 ms | 68.7 ms | 78.8 ms |
 
-### Before/after (both sides on the GPU, one marginal per call)
+### Before/after (both sides on the GPU, one marginal per call, float32)
 
 `torch spline` excludes the conditioning MLP so it is like-for-like with the
-kernel; `alpaka realistic` includes the MLP, the host copy and the kernel.
+kernel; `realistic` includes the MLP, the host copy and the kernel.
 
-| N | torch spline | Alpaka | like-for-like | realistic path | realistic |
+Inverse:
+
+| N | torch spline | Alpaka | like-for-like | realistic | realistic × |
 |---:|---:|---:|---:|---:|---:|
+| 1 | 31.4 ms | 0.12 ms | **254×** | 0.41 ms | 77× |
+| 1 000 | 32.6 ms | 0.19 ms | 176× | 0.54 ms | 60× |
+| 10 000 | 32.2 ms | 0.97 ms | 33× | 1.69 ms | 20× |
+| 50 000 | 31.3 ms | 2.48 ms | **12.7×** | 5.42 ms | 5.9× |
+
+Forward:
+
+| N | torch spline | Alpaka | like-for-like | realistic | realistic × |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 1.26 ms | 0.12 ms | 10.4× | 0.42 ms | 2.9× |
+| 1 000 | 1.32 ms | 0.19 ms | 7.1× | 0.55 ms | 2.4× |
+| 10 000 | 1.30 ms | 1.00 ms | 1.3× | 1.65 ms | **0.8×** |
+| 50 000 | 1.39 ms | 2.48 ms | **0.6×** | 5.47 ms | **0.3×** |
+
+**The forward wins below ~10 000 points and loses above**; the inverse wins at
+every size. This is a known limitation, not a measurement error — see
+`RESULTS.md` §2 and `PRD.md` §9.
+
+> Two earlier revisions of this table were wrong. The first ran PyTorch on the
+> **CPU** while timing the kernel on the **GPU**. The second compared torch
+> "MLP + spline" against kernel "spline only". The script now asserts the
+> device and reports both scopes and both precisions.
+
+---:|---:|---:|---:|---:|---:|
 | 1 | 35.1 ms | 0.27 ms | **130×** | 0.58 ms | 58× |
 | 1 000 | 31.3 ms | 0.82 ms | 38× | 1.70 ms | 19× |
 | 10 000 | 30.3 ms | 2.91 ms | 10× | 7.27 ms | 4.4× |

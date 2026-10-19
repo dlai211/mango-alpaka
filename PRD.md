@@ -124,20 +124,27 @@ Deliverable B is accepted when:
 2. the fixed per-call cost is measured before and after, **on the same device
    and at the same scope** — **met**, with a mixed verdict:
 
+   float32, the pipeline's dtype, after the 0.2.0 optimisations:
+
    | N | torch inverse (spline) | Alpaka | like-for-like | realistic integration |
    |---:|---:|---:|---:|---:|
-   | 1 | 35.1 ms | 0.27 ms | **130×** | 58× |
-   | 1 000 | 31.3 ms | 0.82 ms | 38× | 19× |
-   | 10 000 | 30.3 ms | 2.91 ms | 10× | 4.4× |
-   | 50 000 | 33.1 ms | 11.4 ms | **2.9×** | 1.0× |
+   | 1 | 31.4 ms | 0.12 ms | **254×** | 77× |
+   | 1 000 | 32.6 ms | 0.19 ms | 176× | 60× |
+   | 10 000 | 32.2 ms | 0.97 ms | 33× | 20× |
+   | 50 000 | 31.3 ms | 2.48 ms | **12.7×** | 5.9× |
 
-   **Inverse: accepted.** The win is real at every size and still ~3× at 50 000.
+   **Inverse: accepted**, at every batch size.
 
-   **Forward: not accepted.** The kernel is *slower* above N ≈ 1 000 — 0.4× at
-   N=10 000 like-for-like, 0.2× through a realistic integration. It is
-   `float64` where PyTorch is `float32`, recomputes all 32 bins per element, and
-   copies parameters per call. Making it competitive is the next kernel task
-   (§9), not a reason to reject the inverse result.
+   | N | torch forward (spline) | Alpaka | like-for-like | realistic integration |
+   |---:|---:|---:|---:|---:|
+   | 1 | 1.26 ms | 0.12 ms | 10.4× | 2.9× |
+   | 1 000 | 1.32 ms | 0.19 ms | 7.1× | 2.4× |
+   | 10 000 | 1.30 ms | 1.00 ms | 1.3× | 0.8× |
+   | 50 000 | 1.39 ms | 2.48 ms | **0.6×** | 0.3× |
+
+   **Forward: accepted below ~10 000 points, not above.** The residual gap at
+   large N is the host→device copy of `raw` plus the MLP; closing it needs
+   device pointers (zero-copy), an interface change rather than a kernel one.
 
 Deliverable C is accepted when:
 
@@ -206,8 +213,9 @@ not been written.
 |---|---|
 | Deliverable B — Alpaka kernel | **complete**, 12/12 parity tests at 1e-12 |
 | Deliverable C — interface + contract | **complete** |
-| Inverse (`log_density`) speedup | **validated** — 130× at N=1, 2.9× at N=50 000, like-for-like |
-| Forward (`sample`) speedup | **not achieved** — 0.4× at N=10 000; needs `float32` and fewer copies |
+| `float32` support | **done** (0.2.0) — 2.5–3.9× faster than `float64` in the same code |
+| Inverse (`log_density`) speedup | **validated** — 254× at N=1, 12.7× at N=50 000, like-for-like |
+| Forward (`sample`) speedup | **partial** — 10.4× at N=1, 1.3× at N=10 000, 0.6× at N=50 000 |
 | Linux / Talapas build | not started |
 | Copula in C++ | not started |
 | CNF drop-in | blocked on Brown |

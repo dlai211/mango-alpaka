@@ -3,7 +3,7 @@
 **Deliverable C.** The interface Brown's continuous-flow work and BNL's physics
 validation can code against, and the boundary Oregon's Alpaka kernels implement.
 
-Version: **0.1.0** — provisional. The value lists and the semantics below are
+Version: **0.2.0** — provisional. The value lists and the semantics below are
 what we ask to be frozen; the implementation behind them can change freely.
 
 ---
@@ -53,13 +53,19 @@ the meaning of `raw` becomes internal.
 
 ### 2.2 Arguments
 
-**`raw`** — `float64`, shape `(n, 2 * n_bins)`, C-contiguous.
+**`raw`** — shape `(n, 2 * n_bins)`, C-contiguous, `float32` or `float64`.
 Row `i` is `[width logits (n_bins) | height logits (n_bins)]`, exactly the
 unsplit output of the conditioning MLP.
 
-**`u`** — `float64`, shape `(n,)`, values in `[0, 1]`. Base-distribution samples.
+**`u`** — shape `(n,)`, values in `[0, 1]`. Base-distribution samples.
 
-**`x`** — `float64`, shape `(n,)`, values in `[0, 1]`. Physical samples.
+**`x`** — shape `(n,)`, values in `[0, 1]`. Physical samples.
+
+**Precision** — the dtype of `raw` selects the compute precision; **every other
+buffer must match it**, and the outputs come back in the same dtype. Mixing
+dtypes raises rather than silently converting, because a silent cast of `raw`
+would hide a caller bug. `float64` is the parity reference (1e-12); `float32` is
+what the pipeline runs and holds to a measured 2e-5.
 
 **`backend`** — one of `"cpu_serial"`, `"cpu_omp2_blocks"`, `"cuda"`
 (aliases: `"cpu"`, `"cpu_omp2"`, `"gpu"`). Query the build with
@@ -108,7 +114,8 @@ integral rather than noise.
 
 ## 4. Guarantees this implementation makes
 
-- **Parity with the reference** at `1e-12` absolute and relative, in `float64`,
+- **Parity with the reference** at `1e-12` absolute and relative, in `float64`
+  (`2e-5` in `float32`, measured),
   for forward, inverse, log-Jacobian and `log_density`, at batch sizes
   1 → 5 000, on every enabled backend.
   See `tests/test_cubic_spline_parity.py` (12 tests).
@@ -145,17 +152,20 @@ The inverse is worse — it runs 40 bisection iterations per element:
 
 ### Against the kernel
 
-`tests/benchmark_kernel_vs_reference.py`, dim=2, `float64`, end to end through
-the Python binding (both columns include host↔device copies):
+`tests/benchmark_kernel_vs_reference.py`, one marginal per call, `float32`,
+both sides on the GPU, like-for-like on the spline:
 
-| N | torch forward | Alpaka forward | speedup | torch inverse | Alpaka inverse | speedup |
-|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 1.30 ms | 1.21 ms | 1.1× | 16.09 ms | 1.35 ms | **11.9×** |
-| 1 000 | 5.19 ms | 2.18 ms | 2.4× | 28.65 ms | 2.30 ms | **12.5×** |
-| 50 000 | 193.2 ms | 29.3 ms | 6.6× | 306.1 ms | 29.0 ms | **10.6×** |
+| N | forward | inverse |
+|---:|---:|---:|
+| 1 | 10.4× | **254×** |
+| 1 000 | 7.1× | 176× |
+| 10 000 | 1.3× | 33× |
+| 50 000 | **0.6×** | **12.7×** |
 
-The inverse gain is roughly constant across batch sizes, which is the signature
-of removing a fixed per-call cost rather than winning on arithmetic.
+The inverse wins at every batch size. The forward wins below ~10 000 points and
+loses above; the residual cost is the host→device copy of `raw`, which a
+device-pointer (zero-copy) interface would remove. Full tables in `RESULTS.md`
+§2.
 
 ---
 
@@ -174,7 +184,9 @@ of removing a fixed per-call cost rather than winning on arithmetic.
 
 ## 7. Change policy
 
-`Backend` values, the `raw` layout and the uniform-base `log_density` semantics
-are frozen at 0.1.0. Anything else may change without a version bump while this
+`Backend` values, the `raw` layout, the uniform-base `log_density` semantics
+and the dtype-matching rule are frozen at 0.2.0. 0.2.0 added the `Precision`
+field and moved buffers to `void*` so one signature serves both dtypes; the
+semantics of §2.3 did not change. Anything else may change without a version bump while this
 remains provisional. Changes to the frozen set require agreement from Brown
 (architecture) and BNL (validation), because both consume them.

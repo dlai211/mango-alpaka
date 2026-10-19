@@ -356,27 +356,29 @@ Like-for-like on the spline, one marginal per call, same GPU:
 
 | N | torch inverse | Alpaka | speedup |
 |---:|---:|---:|---:|
-| 1 | 35.1 ms | 0.27 ms | **130×** |
-| 1 000 | 31.3 ms | 0.82 ms | 38× |
-| 10 000 | 30.3 ms | 2.91 ms | 10× |
-| 50 000 | 33.1 ms | 11.4 ms | **2.9×** |
+| 1 | 31.4 ms | 0.12 ms | **254×** |
+| 1 000 | 32.6 ms | 0.19 ms | 176× |
+| 10 000 | 32.2 ms | 0.97 ms | 33× |
+| 50 000 | 31.3 ms | 2.48 ms | **12.7×** |
 
 ### 8.3 The forward is a different answer
 
 | N | torch forward | Alpaka | speedup |
 |---:|---:|---:|---:|
-| 1 | 1.26 ms | 0.25 ms | 5.1× |
-| 1 000 | 1.27 ms | 0.64 ms | 2.0× |
-| 10 000 | 1.42 ms | 3.34 ms | **0.4×** |
-| 50 000 | 2.23 ms | 11.8 ms | **0.2×** |
+| 1 | 1.26 ms | 0.12 ms | 10.4× |
+| 1 000 | 1.32 ms | 0.19 ms | 7.1× |
+| 10 000 | 1.30 ms | 1.00 ms | 1.3× |
+| 50 000 | 1.39 ms | 2.48 ms | **0.6×** |
 
-Above N ≈ 1 000 the kernel is *slower*. It computes in `float64` (1/32 the
-rate of `float32` on a consumer GPU), recomputes all 32 bins per element, and
-copies parameters per call. PyTorch's forward is a few vectorised ops with
-almost no launch cost to amortise.
+Above ~10 000 points the kernel is slower still. The residual cost is the
+host→device copy of `raw` (12.8 MB at 50 000) plus, in a real integration, the
+MLP. Closing it needs device pointers — zero-copy — which is an interface
+change rather than a kernel one.
 
-**Deliverable B is validated for the inverse, not for the forward.** That is
-stated in `PRD.md` §9 and is the next kernel task.
+`float32` was the single biggest lever: the same kernel in `float64` is
+2.5–3.9× slower, because consumer GPUs run `float64` at 1/32 the `float32`
+rate. **Deliverable B is validated for the inverse at every size, and for the
+forward below ~10 000.**
 
 ---
 
