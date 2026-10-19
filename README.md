@@ -19,6 +19,7 @@ read-only reference.
 | **`REPRODUCTION_COMMANDS.md`** | exact commands to regenerate every number |
 | **`RESULTS.md`** | the measurements and what they do and do not claim |
 | `docs/INTERFACE_CONTRACT.md` | the frozen Python ↔ C++ contract (Deliverable C) |
+| **`index.html`** | interactive anatomy: the pipeline, the flow, Alpaka, and where the kernel wins or loses |
 
 New here? Start with `Intro.md`. Rebuilding? `RUNBOOK.md`. Reproducing a
 number? `REPRODUCTION_COMMANDS.md`.

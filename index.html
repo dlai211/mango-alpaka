@@ -387,21 +387,29 @@ footer p { margin: 0 0 6px; }
 
   <div class="card">
     <div class="stages" role="tablist" aria-label="Pipeline stages">
-      <button class="stage-btn" role="tab" aria-selected="true" data-stage="0">
+      <button type="button" class="stage-btn" role="tab" aria-selected="true" data-stage="0">
         <span class="n">01</span><span class="t">Define</span>
       </button>
-      <button class="stage-btn" role="tab" aria-selected="false" data-stage="1">
+      <button type="button" class="stage-btn" role="tab" aria-selected="false" data-stage="1">
         <span class="n">02</span><span class="t">Build the matrix element</span>
       </button>
-      <button class="stage-btn" role="tab" aria-selected="false" data-stage="2">
+      <button type="button" class="stage-btn" role="tab" aria-selected="false" data-stage="2">
         <span class="n">03</span><span class="t">Train the flow</span>
       </button>
-      <button class="stage-btn" role="tab" aria-selected="false" data-stage="3">
+      <button type="button" class="stage-btn" role="tab" aria-selected="false" data-stage="3">
         <span class="n">04</span><span class="t">Validate</span>
       </button>
     </div>
 
-    <div class="stage-detail" id="stageDetail" role="tabpanel" aria-live="polite"></div>
+    <div class="stage-detail" id="stageDetail" role="tabpanel" aria-live="polite">
+      <h3>Define the process</h3>
+      <p>A JSON file names the MadGraph process, the phase-space map, and the energy range. It is the only file that changes when you add a process — unless the final-state topology is new, in which case the phase-space map needs writing too.</p>
+      <pre class="cmd-block">configs/processes/uu_ww_4l.json</pre>
+      <dl>
+        <dt>in</dt><dd>process string, √ŝ range, held-out energies</dd>
+        <dt>out</dt><dd>nothing — this is configuration</dd>
+      </dl>
+    </div>
   </div>
 </section>
 
@@ -419,8 +427,8 @@ footer p { margin: 0 0 6px; }
     <div class="toggle-row">
       <span class="toggle-label">Direction</span>
       <div class="seg" role="group" aria-label="Direction">
-        <button id="dirFwd" aria-pressed="true">forward</button>
-        <button id="dirInv" aria-pressed="false">inverse</button>
+        <button type="button" id="dirFwd" aria-pressed="true">forward</button>
+        <button type="button" id="dirInv" aria-pressed="false">inverse</button>
       </div>
     </div>
 
@@ -700,21 +708,6 @@ footer p { margin: 0 0 6px; }
 (function () {
   "use strict";
 
-  /* ---------------------------------------------------------------- theme */
-  var root = document.documentElement;
-  var btn = document.getElementById("themeBtn");
-  var stored = null;
-  try { stored = localStorage.getItem("mango-theme"); } catch (e) {}
-  if (stored === "dark" || stored === "light") root.setAttribute("data-theme", stored);
-  btn.addEventListener("click", function () {
-    var isDark = root.getAttribute("data-theme") === "dark" ||
-      (!root.getAttribute("data-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    var next = isDark ? "light" : "dark";
-    root.setAttribute("data-theme", next);
-    try { localStorage.setItem("mango-theme", next); } catch (e) {}
-  });
-
-  /* ------------------------------------------------------------- pipeline */
   var STAGES = [
     {
       title: "Define the process",
@@ -724,7 +717,7 @@ footer p { margin: 0 0 6px; }
     },
     {
       title: "Build the matrix element",
-      body: "MadGraph generates a standalone for the process and compiles it into a Python extension. The machine element is then called one event per Python call, which is a cost that shows up later.",
+      body: "MadGraph generates a standalone for the process and compiles it into a Python extension. The matrix element is then called one event per Python call, which is a cost that shows up later.",
       cmd: "python experiments/setup_madgraph_process.py \\\n    --config configs/processes/uu_ww_4l.json --mg5 mg5_aMC",
       io: [["in", "the process card"], ["out", "generated/<proc>_standalone/ with matrix2py.pyd"]]
     },
@@ -742,58 +735,89 @@ footer p { margin: 0 0 6px; }
     }
   ];
 
-  var detail = document.getElementById("stageDetail");
-  var chips = Array.prototype.slice.call(document.querySelectorAll(".stage-btn"));
+  var root = document.documentElement;
+  var detail = null, loopGroup = null, stepTitle = null, stepSub = null,
+      caption = null, tip = null, chartWrap = null;
 
-  function showStage(i) {
-    chips.forEach(function (b) {
-      b.setAttribute("aria-selected", String(Number(b.dataset.stage) === i));
-    });
-    var s = STAGES[i];
-    var html = "<h3>" + s.title + "</h3><p>" + s.body + "</p>";
-    html += '<pre class="cmd-block">' + s.cmd.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</pre>";
-    html += "<dl>";
-    s.io.forEach(function (pair) {
-      html += "<dt>" + pair[0] + "</dt><dd>" + pair[1] + "</dd>";
-    });
-    html += "</dl>";
-    detail.innerHTML = html;
+  function warn(error) {
+    if (window.console && window.console.warn) window.console.warn("mango page:", error);
   }
 
-  chips.forEach(function (b) {
-    b.addEventListener("click", function () { showStage(Number(b.dataset.stage)); });
-  });
-  showStage(0);
+  /* ------------------------------------------------------------- theme */
+  function prefersDark() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+  function applyTheme(mode) {
+    if (mode === "dark" || mode === "light") root.setAttribute("data-theme", mode);
+    else root.removeAttribute("data-theme");
+  }
+  function currentTheme() {
+    var set = root.getAttribute("data-theme");
+    if (set === "dark" || set === "light") return set;
+    return prefersDark() ? "dark" : "light";
+  }
+  function toggleTheme() {
+    var next = currentTheme() === "dark" ? "light" : "dark";
+    applyTheme(next);
+    try { localStorage.setItem("mango-theme", next); } catch (e) {}
+  }
 
-  /* ------------------------------------------------------------ direction */
-  var fwd = document.getElementById("dirFwd");
-  var inv = document.getElementById("dirInv");
-  var loopGroup = document.getElementById("loopGroup");
-  var stepTitle = document.getElementById("stepTitle");
-  var stepSub = document.getElementById("stepSub");
-  var caption = document.getElementById("flowCaption");
+  /* ---------------------------------------------------------- pipeline */
+  function showStage(i) {
+    if (!detail) return;
+    var stage = STAGES[i];
+    if (!stage) return;
+    var chips = document.querySelectorAll(".stage-btn");
+    for (var k = 0; k < chips.length; k++) {
+      chips[k].setAttribute(
+        "aria-selected",
+        String(Number(chips[k].getAttribute("data-stage")) === i)
+      );
+    }
+    var html = "<h3>" + stage.title + "</h3><p>" + stage.body + "</p>";
+    html += '<pre class="cmd-block">' +
+      stage.cmd.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</pre><dl>";
+    for (var j = 0; j < stage.io.length; j++) {
+      html += "<dt>" + stage.io[j][0] + "</dt><dd>" + stage.io[j][1] + "</dd>";
+    }
+    detail.innerHTML = html + "</dl>";
+  }
 
+  /* --------------------------------------------------------- direction */
   function setDirection(inverse) {
-    fwd.setAttribute("aria-pressed", String(!inverse));
-    inv.setAttribute("aria-pressed", String(inverse));
-    loopGroup.setAttribute("opacity", inverse ? "1" : "0");
+    var fwd = document.getElementById("dirFwd");
+    var inv = document.getElementById("dirInv");
+    if (fwd) fwd.setAttribute("aria-pressed", String(!inverse));
+    if (inv) inv.setAttribute("aria-pressed", String(inverse));
+    if (loopGroup) loopGroup.setAttribute("opacity", inverse ? "1" : "0");
     if (inverse) {
-      stepTitle.textContent = "bin search → t, then Hermite";
-      stepSub.textContent = "x → u: 40 bisection steps + one Newton correction";
-      caption.innerHTML = "Inverse: the bin is found on the <em>height</em> knots, then the cubic is solved for <code>t</code> by bracketed bisection and one Newton step. This is the expensive direction — and the one the kernel accelerates by up to 254×.";
+      if (stepSub) stepSub.textContent = "x → u: 40 bisection steps + one Newton correction";
+      if (caption) caption.innerHTML = "Inverse: the bin is found on the <em>height</em> knots, then the cubic is solved for <code>t</code> by bracketed bisection and one Newton step. This is the expensive direction — and the one the kernel accelerates by up to 254×.";
     } else {
-      stepTitle.textContent = "bin search → t, then Hermite";
-      stepSub.textContent = "u → x, and log|dx/du| from the same derivative";
-      caption.innerHTML = "Forward: the conditioning network sets the bin widths, the knots and the slopes; a uniform sample <code>u</code> is placed in its bin and mapped through the cubic. The derivative of that same cubic is the Jacobian, so <code>log|dx/du|</code> costs nothing extra.";
+      if (stepSub) stepSub.textContent = "u → x, and log|dx/du| from the same derivative";
+      if (caption) caption.innerHTML = "Forward: the conditioning network sets the bin widths, the knots and the slopes; a uniform sample <code>u</code> is placed in its bin and mapped through the cubic. The derivative of that same cubic is the Jacobian, so <code>log|dx/du|</code> costs nothing extra.";
     }
   }
-  fwd.addEventListener("click", function () { setDirection(false); });
-  inv.addEventListener("click", function () { setDirection(true); });
-  setDirection(false);
 
-  /* ------------------------------------------------------- launch figures */
-  (function drawLaunches() {
+  /* ------------------------------------------------------------- clicks */
+  function onClick(event) {
+    var el = event.target;
+    while (el && el.nodeType === 1) {
+      if (el.id === "themeBtn") { toggleTheme(); return; }
+      if (el.id === "dirFwd") { setDirection(false); return; }
+      if (el.id === "dirInv") { setDirection(true); return; }
+      if (el.getAttribute && el.getAttribute("data-stage") !== null) {
+        showStage(Number(el.getAttribute("data-stage")));
+        return;
+      }
+      el = el.parentNode;
+    }
+  }
+
+  /* ------------------------------------------------------ launch figure */
+  function drawLaunches() {
     var g = document.getElementById("torchLaunches");
+    if (!g) return;
     var ns = "http://www.w3.org/2000/svg";
     var w = 13, gap = 3.4, x0 = 40, y = 78, h = 22;
     for (var i = 0; i < 40; i++) {
@@ -803,8 +827,7 @@ footer p { margin: 0 0 6px; }
       r.setAttribute("width", String(w));
       r.setAttribute("height", String(h));
       r.setAttribute("rx", "2");
-      r.setAttribute("fill", "var(--flow)");
-      r.setAttribute("opacity", "0.75");
+      r.setAttribute("style", "fill:var(--flow);opacity:.75");
       g.appendChild(r);
     }
     var label = document.createElementNS(ns, "text");
@@ -813,15 +836,18 @@ footer p { margin: 0 0 6px; }
     label.setAttribute("class", "edge-label");
     label.textContent = "40 sequential launches";
     g.appendChild(label);
-  })();
+  }
 
-  /* ----------------------------------------------------------------- chart */
-  (function drawChart() {
+  /* --------------------------------------------------------------- chart */
+  function drawChart() {
+    var host = document.getElementById("chart");
+    if (!host) return;
+
     var W = 760, H = 330, L = 58, R = 96, T = 18, B = 46;
     var data = [
-      { key: "inverse", label: "inverse", color: "var(--flow)",
+      { label: "inverse", color: "var(--flow)",
         pts: [[1, 254.4], [100, 233.0], [1000, 175.5], [10000, 33.4], [50000, 12.7]] },
-      { key: "forward", label: "forward", color: "var(--kernel)",
+      { label: "forward", color: "var(--kernel)",
         pts: [[1, 10.4], [100, 9.8], [1000, 7.1], [10000, 1.3], [50000, 0.6]] }
     ];
     var xMin = Math.log10(1), xMax = Math.log10(50000);
@@ -834,7 +860,7 @@ footer p { margin: 0 0 6px; }
     var svg = document.createElementNS(ns, "svg");
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", "Speedup of the Alpaka kernel over PyTorch against batch size, for the inverse and the forward. The inverse is faster at every size; the forward crosses below parity above 10000 points.");
+    svg.setAttribute("aria-label", "Speedup of the Alpaka kernel over PyTorch against batch size. The inverse is faster at every size; the forward falls below parity above 10000 points.");
 
     function el(name, attrs, text) {
       var n = document.createElementNS(ns, name);
@@ -843,63 +869,86 @@ footer p { margin: 0 0 6px; }
       return n;
     }
 
-    // y grid + labels
     [0.5, 1, 3, 10, 30, 100, 300].forEach(function (v) {
       var y = Y(v);
-      svg.appendChild(el("line", { x1: L, y1: y, x2: W - R, y2: y, stroke: "var(--line)", "stroke-width": 1 }));
-      svg.appendChild(el("text", { x: L - 10, y: y + 4, "text-anchor": "end", "class": "edge-label" },
-        v + "×"));
+      svg.appendChild(el("line", { x1: L, y1: y, x2: W - R, y2: y, style: "stroke:var(--line)", "stroke-width": 1 }));
+      svg.appendChild(el("text", { x: L - 10, y: y + 4, "text-anchor": "end", "class": "edge-label" }, v + "×"));
     });
 
-    // parity line
     var yp = Y(1);
-    svg.appendChild(el("line", { x1: L, y1: yp, x2: W - R, y2: yp, stroke: "var(--muted)", "stroke-width": 1.2, "stroke-dasharray": "6 5" }));
+    svg.appendChild(el("line", { x1: L, y1: yp, x2: W - R, y2: yp, style: "stroke:var(--muted)", "stroke-width": 1.2, "stroke-dasharray": "6 5" }));
     svg.appendChild(el("text", { x: W - R + 8, y: yp + 4, "class": "edge-label" }, "parity"));
 
-    // x ticks
     [[1, "1"], [100, "100"], [1000, "1k"], [10000, "10k"], [50000, "50k"]].forEach(function (pair) {
       var x = X(pair[0]);
-      svg.appendChild(el("line", { x1: x, y1: T, x2: x, y2: H - B, stroke: "var(--line)", "stroke-width": 1, opacity: "0.5" }));
+      svg.appendChild(el("line", { x1: x, y1: T, x2: x, y2: H - B, style: "stroke:var(--line);opacity:.5", "stroke-width": 1 }));
       svg.appendChild(el("text", { x: x, y: H - B + 20, "text-anchor": "middle", "class": "edge-label" }, pair[1]));
     });
     svg.appendChild(el("text", { x: (L + W - R) / 2, y: H - 8, "text-anchor": "middle", "class": "edge-label" }, "batch size N (log)"));
 
-    // series
     data.forEach(function (s) {
-      var d = s.pts.map(function (p, i) { return (i === 0 ? "M" : "L") + X(p[0]) + " " + Y(p[1]); }).join(" ");
-      svg.appendChild(el("path", { d: d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+      var d = s.pts.map(function (p, i) {
+        return (i === 0 ? "M" : "L") + X(p[0]) + " " + Y(p[1]);
+      }).join(" ");
+      svg.appendChild(el("path", { d: d, style: "fill:none;stroke:" + s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
     });
 
-    // points + direct labels
     data.forEach(function (s) {
       s.pts.forEach(function (p) {
-        svg.appendChild(el("circle", { cx: X(p[0]), cy: Y(p[1]), r: 4.5, fill: s.color, stroke: "var(--surface)", "stroke-width": 2 }));
+        svg.appendChild(el("circle", { cx: X(p[0]), cy: Y(p[1]), r: 4.5, style: "fill:" + s.color + ";stroke:var(--surface)", "stroke-width": 2 }));
       });
       var last = s.pts[s.pts.length - 1];
-      svg.appendChild(el("text", { x: X(last[0]) + 10, y: Y(last[1]) + 4, "class": "node-sub", fill: "var(--muted)" }, s.label));
+      svg.appendChild(el("text", { x: X(last[0]) + 10, y: Y(last[1]) + 4, "class": "node-sub" }, s.label));
     });
 
-    document.getElementById("chart").appendChild(svg);
+    host.appendChild(svg);
 
-    // hover targets
-    var wrap = document.getElementById("chartWrap");
-    var tip = document.getElementById("tip");
     data.forEach(function (s) {
       s.pts.forEach(function (p) {
-        var c = el("circle", { cx: X(p[0]), cy: Y(p[1]), r: 14, fill: "transparent", style: "cursor:pointer" });
-        c.addEventListener("mouseenter", function (ev) {
-          var box = wrap.getBoundingClientRect();
-          var sx = (ev.clientX - box.left);
-          var sy = (ev.clientY - box.top);
+        var hit = el("circle", { cx: X(p[0]), cy: Y(p[1]), r: 14, style: "fill:transparent;cursor:pointer" });
+        hit.addEventListener("mouseenter", function (ev) {
+          if (!tip || !chartWrap) return;
+          var box = chartWrap.getBoundingClientRect();
           tip.innerHTML = "<b>N = " + p[0].toLocaleString() + "</b><br>" + s.label + ": " + p[1] + "×";
-          tip.style.left = sx + "px";
-          tip.style.top = sy + "px";
+          tip.style.left = (ev.clientX - box.left) + "px";
+          tip.style.top = (ev.clientY - box.top) + "px";
           tip.setAttribute("data-show", "true");
         });
-        c.addEventListener("mouseleave", function () { tip.setAttribute("data-show", "false"); });
-        svg.appendChild(c);
+        hit.addEventListener("mouseleave", function () {
+          if (tip) tip.setAttribute("data-show", "false");
+        });
+        svg.appendChild(hit);
       });
     });
-  })();
+  }
+
+  /* ---------------------------------------------------------------- init */
+  function init() {
+    detail = document.getElementById("stageDetail");
+    loopGroup = document.getElementById("loopGroup");
+    stepTitle = document.getElementById("stepTitle");
+    stepSub = document.getElementById("stepSub");
+    caption = document.getElementById("flowCaption");
+    tip = document.getElementById("tip");
+    chartWrap = document.getElementById("chartWrap");
+
+    try {
+      var saved = localStorage.getItem("mango-theme");
+      if (saved === "dark" || saved === "light") applyTheme(saved);
+    } catch (e) {}
+
+    document.addEventListener("click", onClick);
+
+    try { showStage(0); } catch (e) { warn(e); }
+    try { setDirection(false); } catch (e) { warn(e); }
+    try { drawLaunches(); } catch (e) { warn(e); }
+    try { drawChart(); } catch (e) { warn(e); }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
 </script>
