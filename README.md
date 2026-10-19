@@ -105,20 +105,24 @@ is free and the launch cost is everything. The inverse is worse: it runs 40
 bisection iterations per element, so `log_density` costs 65.9 ms at N=1 and
 78.8 ms at N=50 000.
 
-End to end through the Python binding, **both sides on the same GPU**
-(an earlier comparison accidentally ran torch on the CPU — see `RESULTS.md` §2):
+End to end through the Python binding, **both sides on the GPU**, like-for-like
+on the spline (torch's conditioning MLP is excluded from its column — see
+`RESULTS.md` §2):
 
-| N | inverse speedup | forward speedup | combined |
-|---:|---:|---:|---:|
-| 1 | **124×** | 8.7× | — |
-| 1 000 | 47× | 4.3× | **27×** |
-| 10 000 | 12× | 0.6× | **5.8×** |
-| 50 000 | 3.2× | 0.6× | **1.9×** |
+| N | inverse | forward | inverse, realistic | forward, realistic |
+|---:|---:|---:|---:|---:|
+| 1 | **130×** | 5.1× | 58× | 2.1× |
+| 1 000 | 38× | 2.0× | 19× | 0.9× |
+| 10 000 | 10× | **0.4×** | 4.4× | **0.2×** |
+| 50 000 | 2.9× | **0.2×** | 1.0× | **0.1×** |
 
-The inverse win shrinks as N grows because PyTorch's cost is a fixed 40-launch
-bisection loop while the kernel does real arithmetic. The forward is currently
-a **regression above N≈10 000**: the kernel is `float64` (1/32 rate on a
-consumer GPU) and copies per call.
+"realistic" = MLP in torch → host copy → kernel, which is what an integration
+would do today.
+
+**The inverse is a validated win; the forward is a regression above N ≈ 1 000.**
+The kernel is `float64` (1/32 rate on a consumer GPU) and copies parameters per
+call, while PyTorch's forward is a few vectorised ops. Making the forward
+competitive is the next kernel task — see `PRD.md` §9.
 
 ---
 

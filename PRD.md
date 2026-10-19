@@ -118,21 +118,26 @@ boundary stable for validation.
 Deliverable B is accepted when:
 
 1. the kernel reproduces the PyTorch marginal to 1e-12 on all enabled backends
-   — **met, 12/12 tests**;
-2. the fixed per-call cost is measured before and after, **on the same device**
-   — **met**:
+   — **met, 12/12 tests**, and independently confirmed against a NumPy
+   implementation written from the formulas (1e-15 to 1e-13 inside the model's
+   logit range);
+2. the fixed per-call cost is measured before and after, **on the same device
+   and at the same scope** — **met**, with a mixed verdict:
 
-   | N | torch inverse (CUDA, f32) | Alpaka inverse | speedup | combined step |
+   | N | torch inverse (spline) | Alpaka | like-for-like | realistic integration |
    |---:|---:|---:|---:|---:|
-   | 1 | 72.1 ms | 0.58 ms | **124×** | — |
-   | 1 000 | 71.3 ms | 1.53 ms | **47×** | 27× |
-   | 10 000 | 70.4 ms | 6.04 ms | **12×** | 5.8× |
-   | 50 000 | 74.6 ms | 23.0 ms | **3.2×** | 1.9× |
+   | 1 | 35.1 ms | 0.27 ms | **130×** | 58× |
+   | 1 000 | 31.3 ms | 0.82 ms | 38× | 19× |
+   | 10 000 | 30.3 ms | 2.91 ms | 10× | 4.4× |
+   | 50 000 | 33.1 ms | 11.4 ms | **2.9×** | 1.0× |
 
-   The inverse dominates a combined sample+score step, so the win survives, but
-   it falls with batch size. Separately, the **forward is currently a
-   regression above N≈10 000** (0.6×): the kernel is `float64` where PyTorch is
-   `float32`, and it copies per call. Fixing that is the next kernel task.
+   **Inverse: accepted.** The win is real at every size and still ~3× at 50 000.
+
+   **Forward: not accepted.** The kernel is *slower* above N ≈ 1 000 — 0.4× at
+   N=10 000 like-for-like, 0.2× through a realistic integration. It is
+   `float64` where PyTorch is `float32`, recomputes all 32 bins per element, and
+   copies parameters per call. Making it competitive is the next kernel task
+   (§9), not a reason to reject the inverse result.
 
 Deliverable C is accepted when:
 
@@ -173,6 +178,18 @@ than noise. This must be settled with Brown before the kernel is rewritten.
 wins because it evaluates each element in one kernel. Any future change that
 splits the computation back into stages gives the gain away.
 
+**The forward does not currently win, and it is the half that runs most often.**
+The validated result is for the inverse; a pipeline samples with the forward and
+scores with the inverse. Using the kernel for sampling today would be several
+times slower than PyTorch. `float32` and a copy-free calling convention are
+prerequisites for calling Deliverable B done end to end.
+
+**Parity is bounded by the logit range.** The 1e-12 claim holds where the model
+operates (logits within `[-1.62, 1.31]`). Beyond `|raw| ≈ 5` the softmax
+saturates and inverse log-determinants diverge from PyTorch by ~1e-11, rising
+to ~1e-6 at extreme scales. Any future model that produces larger logits needs
+the tolerance re-derived.
+
 **The interface may be frozen too early.** 0.1.0 deliberately excludes the
 copula and streaming. If those turn out to be coupled to the marginal's layout,
 the frozen part will need a version bump.
@@ -189,7 +206,8 @@ not been written.
 |---|---|
 | Deliverable B — Alpaka kernel | **complete**, 12/12 parity tests at 1e-12 |
 | Deliverable C — interface + contract | **complete** |
-| Before/after measurement | **complete**, 10–15× on the inverse |
+| Inverse (`log_density`) speedup | **validated** — 130× at N=1, 2.9× at N=50 000, like-for-like |
+| Forward (`sample`) speedup | **not achieved** — 0.4× at N=10 000; needs `float32` and fewer copies |
 | Linux / Talapas build | not started |
 | Copula in C++ | not started |
 | CNF drop-in | blocked on Brown |

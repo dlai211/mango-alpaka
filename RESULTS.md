@@ -63,73 +63,75 @@ That asymmetry is the whole opportunity.
 
 ## 2. The Alpaka kernel: where it wins and where it does not
 
-`tests/benchmark_kernel_vs_reference.py`, dim=2 (two marginal calls), **both
-sides on the same GPU**, end to end through the Python binding. Both columns
-include the host↔device copies the C++ launcher performs.
+`tests/benchmark_kernel_vs_reference.py`, one marginal per call, **both sides on
+the GPU**, measured three ways because the first two attempts were wrong.
 
-> **Correction.** An earlier revision compared PyTorch running on the **CPU**
-> against the kernel on the **GPU**, because the benchmark never moved the
-> torch model to the device. That inflated every speedup by roughly an order of
-> magnitude at small N. The device is now asserted in the script, and the table
-> below is a same-device comparison.
+| column | what it is |
+|---|---|
+| `torch full` | MLP + spline, as the pipeline calls it |
+| `torch spline` | spline only, `_params` shadowed with cached tensors — like-for-like with the kernel |
+| `alpaka spline` | kernel with the MLP output precomputed |
+| `alpaka realistic` | MLP in torch → host copy → kernel, i.e. what an integration does today |
 
-### Inverse (`log_density`) — the win
+### Two corrections to the earlier numbers
 
-| N | torch f32 | Alpaka | speedup | torch f64 | speedup |
-|---:|---:|---:|---:|---:|---:|
-| 1 | 72.1 ms | **0.58 ms** | **124×** | 74.6 ms | 129× |
-| 100 | 74.1 ms | 0.92 ms | 81× | 71.6 ms | 78× |
-| 1 000 | 71.3 ms | 1.53 ms | 47× | 72.7 ms | 47× |
-| 10 000 | 70.4 ms | 6.04 ms | 12× | 74.5 ms | 12× |
-| 50 000 | 74.6 ms | 23.0 ms | **3.2×** | 110.5 ms | 4.8× |
+1. **Device.** The first version left the torch model on the CPU and timed the
+   kernel on the GPU. Fixed; the script now asserts placement.
+2. **Scope.** `ConditionalCubicFlow1D.forward` calls its conditioning MLP
+   through `_params(cond)`; the kernel takes that MLP's output. Comparing them
+   as-is compares "MLP + spline" against "spline", which flatters the kernel.
+   The `torch spline` column removes that asymmetry.
 
-PyTorch's inverse cost is flat at ~72 ms regardless of batch — 40 bisection
-iterations, each a handful of launches. The kernel's cost grows with N because
-it is doing the arithmetic. **The speedup therefore falls as N rises**: 124× at
-one point, 3.2× at fifty thousand.
+### Forward (`sample`)
 
-### Forward (`sample`) — the regression
+| N | torch full | torch spline | Alpaka spline | like-for-like | Alpaka realistic | realistic |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 1.17 ms | 1.26 ms | 0.25 ms | **5.1×** | 0.55 ms | 2.1× |
+| 100 | 1.27 ms | 1.20 ms | 0.35 ms | 3.5× | 0.73 ms | 1.7× |
+| 1 000 | 1.31 ms | 1.27 ms | 0.64 ms | 2.0× | 1.51 ms | 0.9× |
+| 10 000 | 1.29 ms | 1.42 ms | 3.34 ms | **0.4×** | 7.79 ms | **0.2×** |
+| 50 000 | 2.40 ms | 2.23 ms | 11.81 ms | **0.2×** | 31.0 ms | **0.1×** |
 
-| N | torch f32 | Alpaka | speedup | torch f64 | speedup |
-|---:|---:|---:|---:|---:|---:|
-| 1 | 4.10 ms | **0.47 ms** | **8.7×** | 4.41 ms | 9.3× |
-| 100 | 4.25 ms | 0.70 ms | 6.1× | 4.18 ms | 6.0× |
-| 1 000 | 5.54 ms | 1.30 ms | 4.3× | 4.61 ms | 3.5× |
-| 10 000 | 4.25 ms | 6.78 ms | **0.6×** | 8.97 ms | 1.3× |
-| 50 000 | 12.87 ms | 22.5 ms | **0.6×** | 55.9 ms | 2.5× |
+**The forward is not competitive above N ≈ 1 000.** PyTorch's forward is a few
+vectorised ops with almost no launch cost to amortise; the kernel is `float64`
+(1/32 rate on a consumer GPU), recomputes all 32 bins per element, and copies
+the parameters across PCIe each call.
 
-**At N ≥ 10 000 the kernel is slower than PyTorch at the forward.** PyTorch's
-forward is a handful of well-vectorised float32 operations with almost no
-launch cost to amortise; the kernel evaluates in `float64`, recomputes all 32
-bins per element, and pays a host↔device copy. On a consumer GPU `float64` runs
-at 1/32 of the `float32` rate, so the precision choice alone is expensive.
+### Inverse (`log_density`)
 
-### What a full step looks like
+| N | torch full | torch spline | Alpaka spline | like-for-like | Alpaka realistic | realistic |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 33.7 ms | 35.1 ms | 0.27 ms | **130×** | 0.58 ms | **58×** |
+| 100 | 35.2 ms | 36.2 ms | 0.51 ms | 71× | 0.87 ms | 41× |
+| 1 000 | 31.6 ms | 31.3 ms | 0.82 ms | 38× | 1.70 ms | 19× |
+| 10 000 | 31.7 ms | 30.3 ms | 2.91 ms | 10× | 7.27 ms | 4.4× |
+| 50 000 | 30.9 ms | 33.1 ms | 11.4 ms | **2.9×** | 31.7 ms | **1.0×** |
 
-A marginal evaluation step does both: sample, then score. Summing the two
-columns at pipeline-relevant sizes:
+PyTorch's inverse is flat at ~32 ms for the spline alone — 40 bisection
+iterations, each a handful of launches. **That is the win, and it is real**: the
+kernel is 130× faster at N=1 and still 2.9× at N=50 000, like-for-like.
 
-| N | torch f32 (fwd+inv) | Alpaka (fwd+inv) | combined |
-|---:|---:|---:|---:|
-| 1 000 | 76.9 ms | 2.83 ms | **27×** |
-| 10 000 | 74.7 ms | 12.8 ms | **5.8×** |
-| 50 000 | 87.5 ms | 45.5 ms | **1.9×** |
+### What this means for a deployment
 
-The inverse dominates the total, so the win survives — but it shrinks quickly.
-At the pipeline's training batch (32 768 points) expect roughly **2.5–4×**, not
-the 10× that the incorrect comparison suggested.
+At the batch sizes this pipeline actually uses:
 
-### What is claimed
+| where | N | inverse (realistic) | forward (realistic) |
+|---|---:|---:|---:|
+| validation, `--gpu-chunk` default | 10 000 | **4.4×** | 0.2× |
+| full weight cache | 524 288 | ~1× | ~0.1× |
+| training KL batch | 32 768 | ~1.5× | ~0.15× |
 
-- The kernel removes the fixed cost of the bisection loop: **124× at N=1** on
-  the inverse, falling to 3.2× at N=50 000.
-- A combined marginal step is **5.8×** faster at N=10 000 and **1.9×** at
-  N=50 000, single-process, `float64`.
-- Nothing about the forward at large N: it is **currently a regression**.
+**The kernel is a validated win for the inverse and a regression for the
+forward.** Using it for `log_density` at the validation chunk size would cut
+that stage by ~4×; using it for sampling would make sampling several times
+slower. Any integration has to be selective, and the forward needs the
+optimisation work described in `PRD.md` §9 before it is usable at scale.
 
 ---
 
-## 3. Parity with the reference
+## 3. Parity with the reference — independently verified
+
+### 3.1 Against PyTorch
 
 `tests/test_cubic_spline_parity.py`, 12 tests, all passing:
 
@@ -146,14 +148,48 @@ the 10× that the incorrect comparison suggested.
 Covered batch sizes: 1, 7, 512, 5 000. Backends: `cpu_serial`,
 `cpu_omp2_blocks`, `cuda`.
 
-`1e-12` is a demanding threshold in `float64` — it allows roughly a thousand
-ULPs at unit magnitude, i.e. differences in operation order and `exp`/`log`
-implementations only. A real formula mismatch fails by orders of magnitude, not
-by a little.
+### 3.2 Against an independent implementation
 
-The only thing not exercised is `n_bins` other than 32. Kernels for 8, 16 and
-64 are instantiated and compile, but only 32 has a reference model to compare
-against.
+PyTorch parity alone cannot catch a mistake shared by both implementations, so
+the kernel was also compared against a NumPy reference written directly from
+the formulas (softmax scaling, cumulative knots, PCHIP slopes, Hermite, 40-step
+bisection, one Newton correction) — no shared code with either.
+
+| input | forward `x` | forward `logdet` | inverse `u` | inverse `logdet` |
+|---|---:|---:|---:|---:|
+| normal logits (|raw| ≲ 4) | 6.7e-15 | 8.1e-13 | 4.2e-14 | 2.8e-12 |
+| boundary values (0, 1, 1e-12, 1−1e-12) | 1.0e-15 | finite | 2.7e-15 | finite |
+
+### 3.3 Where the parity claim stops
+
+Parity degrades as the logits grow, because the softmax saturates and the
+secants span many orders of magnitude:
+
+| logit scale | max \|raw\| | forward `logdet` | inverse `logdet` |
+|---:|---:|---:|---:|
+| 1 | 0.26 | 1.6e-14 | 1.4e-14 |
+| 5 | 1.29 | 2.1e-13 | 1.9e-13 |
+| 10 | 2.59 | 4.8e-13 | 4.6e-13 |
+| 20 | 5.17 | 5.8e-12 | 5.9e-11 |
+
+**The trained model's logits are within `[-1.62, 1.31]`** (measured from the
+`gg_ttbar` thorough checkpoint over 200 000 energy samples), so the 1e-12 claim
+holds for every input this model produces. It is not a guarantee for arbitrary
+logits, and `PRD.md` §8 records that.
+
+### 3.4 The CUDA backend is really the GPU
+
+A silent CPU fallback would look plausible at small batch. It is not happening:
+
+| N | `cuda` | `cpu_serial` |
+|---:|---:|---:|
+| 1 000 | 0.71 ms | 1.0 ms |
+| 10 000 | 2.92 ms | 11.8 ms |
+| 50 000 | 11.1 ms | 61.2 ms |
+
+The gap widens with batch, which is what a real GPU path does. An unavailable
+backend raises rather than falling back (`src/launcher.cu`), and
+`REPRODUCTION_COMMANDS.md` §6.3 exercises that path.
 
 ---
 

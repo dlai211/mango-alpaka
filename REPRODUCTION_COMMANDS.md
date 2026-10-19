@@ -215,20 +215,31 @@ hard bound** for parity.
 | cuda | sample | 3.68 ms | 3.70 ms | 13.1 ms |
 | cuda | log_density | 69.8 ms | 68.7 ms | 78.8 ms |
 
-### Before/after (both sides on the same GPU, 2 marginal calls)
+### Before/after (both sides on the GPU, one marginal per call)
 
-| N | torch f32 inv | Alpaka inv | inv speedup | torch f32 fwd | Alpaka fwd | fwd speedup |
-|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 72.1 ms | 0.58 ms | **124×** | 4.10 ms | 0.47 ms | 8.7× |
-| 100 | 74.1 ms | 0.92 ms | 81× | 4.25 ms | 0.70 ms | 6.1× |
-| 1 000 | 71.3 ms | 1.53 ms | 47× | 5.54 ms | 1.30 ms | 4.3× |
-| 10 000 | 70.4 ms | 6.04 ms | 12× | 4.25 ms | 6.78 ms | 0.6× |
-| 50 000 | 74.6 ms | 23.0 ms | **3.2×** | 12.87 ms | 22.5 ms | 0.6× |
+`torch spline` excludes the conditioning MLP so it is like-for-like with the
+kernel; `alpaka realistic` includes the MLP, the host copy and the kernel.
 
-The forward is **slower** in the kernel above N≈10 000. This is a known
-regression, not a measurement error: the kernel is `float64` and copies per
-call. See `RESULTS.md` §2.
+| N | torch spline | Alpaka | like-for-like | realistic path | realistic |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 35.1 ms | 0.27 ms | **130×** | 0.58 ms | 58× |
+| 1 000 | 31.3 ms | 0.82 ms | 38× | 1.70 ms | 19× |
+| 10 000 | 30.3 ms | 2.91 ms | 10× | 7.27 ms | 4.4× |
+| 50 000 | 33.1 ms | 11.4 ms | **2.9×** | 31.7 ms | 1.0× |
 
-> An earlier revision of this table compared PyTorch on the **CPU** against the
-> kernel on the **GPU**, inflating the small-N speedups by about an order of
-> magnitude. The script now asserts that both run on the same device.
+And the forward, where the answer is different:
+
+| N | torch spline | Alpaka | like-for-like | realistic path | realistic |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 1.26 ms | 0.25 ms | 5.1× | 0.55 ms | 2.1× |
+| 1 000 | 1.27 ms | 0.64 ms | 2.0× | 1.51 ms | 0.9× |
+| 10 000 | 1.42 ms | 3.34 ms | **0.4×** | 7.79 ms | **0.2×** |
+| 50 000 | 2.23 ms | 11.8 ms | **0.2×** | 31.0 ms | **0.1×** |
+
+**The forward is a regression above N ≈ 1 000.** This is a known limitation, not
+a measurement error — see `RESULTS.md` §2 and `PRD.md` §9.
+
+> Two earlier revisions of this table were wrong. The first ran PyTorch on the
+> **CPU** while timing the kernel on the **GPU**. The second compared torch
+> "MLP + spline" against kernel "spline only". The script now asserts the
+> device and reports both scopes.
