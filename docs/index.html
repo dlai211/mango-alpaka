@@ -1,0 +1,905 @@
+<title>MANGO Flow Anatomy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+/* ---------------------------------------------------------------------------
+   MANGO Flow Anatomy
+   Layout: a single measured column; each section is a diagram on a card with a
+   numbered rail label. Neutrals carry a blue bias to match the flow accent.
+   Chart series: --flow (torch side) and --kernel (Alpaka side), validated for
+   CVD separation in both themes.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --bg: #F3F6F8;
+  --surface: #FFFFFF;
+  --surface-2: #E9EEF3;
+  --ink: #0F1A22;
+  --muted: #5A6B7A;
+  --line: #D3DDE6;
+  --flow: #0891B2;
+  --kernel: #B45309;
+  --good: #15803D;
+  --warn: #B91C1C;
+  --shadow: 0 1px 2px rgba(15, 26, 34, .06), 0 10px 30px rgba(15, 26, 34, .07);
+  color-scheme: light;
+
+  --display: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1116;
+    --surface: #10161C;
+    --surface-2: #161E26;
+    --ink: #E6EDF3;
+    --muted: #93A4B3;
+    --line: #243040;
+    --flow: #0891B2;
+    --kernel: #D97706;
+    --good: #4ADE80;
+    --warn: #F87171;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 30px rgba(0, 0, 0, .4);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0C1116;
+  --surface: #10161C;
+  --surface-2: #161E26;
+  --ink: #E6EDF3;
+  --muted: #93A4B3;
+  --line: #243040;
+  --flow: #0891B2;
+  --kernel: #D97706;
+  --good: #4ADE80;
+  --warn: #F87171;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 30px rgba(0, 0, 0, .4);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.65;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 72px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page { max-width: 1040px; margin: 0 auto; }
+
+/* --- header ---------------------------------------------------------------- */
+
+.hero { padding-block: 56px 32px; border-bottom: 1px solid var(--line); }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(34px, 6vw, 54px);
+  line-height: 1.04;
+  letter-spacing: -.02em;
+  margin: 0 0 16px;
+  text-wrap: balance;
+}
+
+.lede {
+  font-size: clamp(16px, 2.2vw, 19px);
+  color: var(--muted);
+  max-width: 62ch;
+  margin: 0;
+}
+
+.lede strong { color: var(--ink); font-weight: 600; }
+
+.theme-toggle {
+  float: right;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 7px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--muted); }
+.theme-toggle:focus-visible { outline: 2px solid var(--flow); outline-offset: 2px; }
+
+/* --- sections -------------------------------------------------------------- */
+
+section { padding-block: 52px 8px; border-bottom: 1px solid var(--line); }
+section:last-of-type { border-bottom: 0; }
+
+.sec-head {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 16px;
+  align-items: baseline;
+  margin-bottom: 26px;
+}
+
+.sec-num {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: .1em;
+  padding-top: 6px;
+}
+
+h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(23px, 3.4vw, 31px);
+  line-height: 1.15;
+  letter-spacing: -.015em;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+
+.sec-sub { color: var(--muted); margin: 0; max-width: 68ch; }
+
+/* --- cards & figures ------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+
+figure { margin: 0; }
+
+.diagram-scroll { overflow-x: auto; }
+
+svg.diagram { display: block; width: 100%; min-width: 620px; height: auto; }
+
+figcaption {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin-top: 14px;
+  max-width: 74ch;
+}
+
+/* diagram shapes: colors live in CSS, never in presentation attributes */
+.s-area     { fill: var(--surface);   stroke: var(--line); }
+.s-sunk     { fill: var(--surface-2); stroke: var(--line); }
+.s-ink      { fill: var(--surface);   stroke: var(--ink); }
+.s-accent   { fill: var(--surface);   stroke: var(--flow); stroke-width: 1.5; }
+.s-boundary { fill: var(--surface-2); stroke: var(--kernel); stroke-width: 1.5; }
+.s-line     { stroke: var(--line); stroke-width: 1.5; fill: none; }
+.s-dash     { stroke: var(--kernel); stroke-width: 1; stroke-dasharray: 5 5; fill: none; }
+.s-loop     { stroke: var(--kernel); stroke-width: 1.5; fill: none; }
+.mk-line polygon   { fill: var(--line); }
+.mk-flow polygon   { fill: var(--flow); }
+.mk-kernel polygon { fill: var(--kernel); }
+.node-sub.on-dark { fill: #ffffff; }
+.badge-kernel { fill: var(--kernel); }
+
+/* diagram typography */
+.node-title { font-family: var(--display); font-weight: 600; font-size: 14px; fill: var(--ink); }
+.node-sub { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+.edge-label { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+.badge-text { font-family: var(--mono); font-size: 10px; letter-spacing: .05em; }
+
+/* --- pipeline stepper ------------------------------------------------------ */
+
+.stages { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+
+.stage-btn {
+  flex: 1 1 150px;
+  min-width: 0;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 13px;
+  cursor: pointer;
+  color: var(--ink);
+  font-family: var(--body);
+  transition: border-color .15s, background .15s;
+}
+.stage-btn:hover { border-color: var(--muted); }
+.stage-btn:focus-visible { outline: 2px solid var(--flow); outline-offset: 2px; }
+.stage-btn[aria-selected="true"] {
+  border-color: var(--flow);
+  box-shadow: inset 0 0 0 1px var(--flow);
+}
+.stage-btn .n { font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: .08em; }
+.stage-btn .t { display: block; font-weight: 600; font-size: 14px; line-height: 1.25; margin-top: 3px; }
+
+.stage-detail { border-top: 1px solid var(--line); padding-top: 16px; }
+.stage-detail h3 {
+  font-family: var(--display); font-size: 16px; font-weight: 600; margin: 0 0 8px;
+}
+.stage-detail p { margin: 0 0 10px; color: var(--muted); max-width: 68ch; }
+.stage-detail dl { display: grid; grid-template-columns: 96px 1fr; gap: 6px 14px; margin: 0; }
+.stage-detail dt { font-family: var(--mono); font-size: 11.5px; color: var(--muted); letter-spacing: .04em; }
+.stage-detail dd { margin: 0; font-size: 14px; }
+
+code, .cmd {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+.cmd-block {
+  display: block;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 10px 0 0;
+  color: var(--ink);
+}
+
+/* --- toggle ---------------------------------------------------------------- */
+
+.toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.toggle-label { font-family: var(--mono); font-size: 11.5px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.seg button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 13px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.seg button:focus-visible { outline: 2px solid var(--flow); outline-offset: 1px; }
+
+/* --- comparison table ------------------------------------------------------ */
+
+.table-scroll { overflow-x: auto; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+  margin: 0;
+}
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--mono); font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+.win { color: var(--good); font-weight: 600; }
+.loss { color: var(--warn); font-weight: 600; }
+
+/* --- chart ----------------------------------------------------------------- */
+
+.chart-wrap { position: relative; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+#chart svg { display: block; width: 100%; height: auto; }
+
+.tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translate(-50%, -110%);
+  transition: opacity .1s;
+  white-space: nowrap;
+  z-index: 3;
+}
+.tooltip[data-show="true"] { opacity: 1; }
+.tooltip b { font-weight: 500; color: var(--ink); }
+
+/* --- callout --------------------------------------------------------------- */
+
+.note {
+  border-left: 3px solid var(--kernel);
+  background: var(--surface);
+  padding: 14px 16px;
+  border-radius: 0 8px 8px 0;
+  margin-top: 18px;
+  font-size: 14.5px;
+  color: var(--muted);
+}
+.note strong { color: var(--ink); }
+
+/* --- footer ---------------------------------------------------------------- */
+
+footer { padding-block: 40px 0; color: var(--muted); font-size: 13.5px; }
+footer p { margin: 0 0 6px; }
+
+/* --- motion ---------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+@media (max-width: 640px) {
+  .sec-head { grid-template-columns: 1fr; gap: 4px; }
+  .sec-num { padding-top: 0; }
+  .hero { padding-block: 36px 26px; }
+  .stage-detail dl { grid-template-columns: 1fr; gap: 2px; }
+  .stage-detail dt { margin-top: 8px; }
+}
+</style>
+
+<div class="page">
+
+<header class="hero">
+  <button class="theme-toggle" id="themeBtn" type="button" aria-label="Toggle color theme">Theme</button>
+  <p class="eyebrow">MANGO · Oregon workstream · Phase I</p>
+  <h1>MANGO Flow Anatomy</h1>
+  <p class="lede">
+    A conditional normalizing flow supplies the physics. An Alpaka kernel supplies the speed.
+    This page walks the whole path, then shows <strong>where the time actually goes</strong> —
+    including the half where the kernel still loses.
+  </p>
+</header>
+
+<main>
+
+<!-- ============================================================ 01 PIPELINE -->
+<section id="pipeline">
+  <div class="sec-head">
+    <div class="sec-num">01</div>
+    <div>
+      <h2>The pipeline, end to end</h2>
+      <p class="sec-sub">Four stages take a process definition to a validated integral. Pick one to see what runs and what it leaves behind.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stages" role="tablist" aria-label="Pipeline stages">
+      <button class="stage-btn" role="tab" aria-selected="true" data-stage="0">
+        <span class="n">01</span><span class="t">Define</span>
+      </button>
+      <button class="stage-btn" role="tab" aria-selected="false" data-stage="1">
+        <span class="n">02</span><span class="t">Build the matrix element</span>
+      </button>
+      <button class="stage-btn" role="tab" aria-selected="false" data-stage="2">
+        <span class="n">03</span><span class="t">Train the flow</span>
+      </button>
+      <button class="stage-btn" role="tab" aria-selected="false" data-stage="3">
+        <span class="n">04</span><span class="t">Validate</span>
+      </button>
+    </div>
+
+    <div class="stage-detail" id="stageDetail" role="tabpanel" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- ================================================================ 02 FLOW -->
+<section id="flow">
+  <div class="sec-head">
+    <div class="sec-num">02</div>
+    <div>
+      <h2>How the conditional flow works</h2>
+      <p class="sec-sub">One point's journey through the marginal. The conditioning network makes the map different for every collision energy; everything after the boundary happens inside the kernel.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toggle-row">
+      <span class="toggle-label">Direction</span>
+      <div class="seg" role="group" aria-label="Direction">
+        <button id="dirFwd" aria-pressed="true">forward</button>
+        <button id="dirInv" aria-pressed="false">inverse</button>
+      </div>
+    </div>
+
+    <figure>
+      <div class="diagram-scroll">
+        <svg class="diagram" viewBox="0 0 760 660" role="img" aria-label="The marginal: conditioning, scaled softmax, cumulative knots, PCHIP slopes, bin search, and Hermite evaluation, with the inverse using a 40-step bisection.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <polygon class="mk-line" points="0,0 10,5 0,10"></polygon>
+            </marker>
+            <marker id="arKernel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <polygon class="mk-kernel" points="0,0 10,5 0,10"></polygon>
+            </marker>
+          </defs>
+          <!-- edges -->
+            <line class="s-line" x1="320" y1="76" x2="320" y2="104" marker-end="url(#ar)"></line>
+            <line class="s-line" x1="320" y1="172" x2="320" y2="200" marker-end="url(#ar)"></line>
+            <line class="s-line" x1="320" y1="268" x2="320" y2="296" marker-end="url(#ar)"></line>
+            <line class="s-line" x1="320" y1="364" x2="320" y2="392" marker-end="url(#ar)"></line>
+            <line class="s-line" x1="320" y1="460" x2="320" y2="488" marker-end="url(#ar)"></line>
+            <line class="s-line" x1="320" y1="556" x2="320" y2="584" marker-end="url(#ar)"></line>
+
+          <!-- 1 cond -->
+          <rect class="s-sunk" x="180" y="32" width="280" height="44" rx="8"></rect>
+          <text class="node-title" x="320" y="52" text-anchor="middle">condition c</text>
+          <text class="node-sub" x="320" y="67" text-anchor="middle">sqrt(s-hat) per event · (n, 3)</text>
+
+          <!-- 2 MLP -->
+          <rect class="s-accent" x="180" y="108" width="280" height="64" rx="8"></rect>
+          <text class="node-title" x="320" y="130" text-anchor="middle">conditioning MLP</text>
+          <text class="node-sub" x="320" y="146" text-anchor="middle">3 → 128 → 128 → 64 · PyTorch</text>
+          <text class="node-sub" x="320" y="161" text-anchor="middle">one forward pass per energy, not per point</text>
+
+          <!-- boundary -->
+          <line class="s-dash" x1="120" y1="188" x2="640" y2="188"></line>
+          <text class="badge-text badge-kernel" x="126" y="182">THE BOUNDARY — raw floats cross here</text>
+
+          <!-- 3 raw -->
+          <rect class="s-boundary" x="180" y="204" width="280" height="64" rx="8"></rect>
+          <text class="node-title" x="320" y="226" text-anchor="middle">raw logits</text>
+          <text class="node-sub" x="320" y="242" text-anchor="middle">32 width + 32 height · (n, 64)</text>
+          <text class="node-sub" x="320" y="257" text-anchor="middle">trainable, no physical meaning on their own</text>
+
+          <!-- 4 softmax -->
+          <rect class="s-area" x="180" y="300" width="280" height="64" rx="8"></rect>
+          <text class="node-title" x="320" y="322" text-anchor="middle">scaled softmax</text>
+          <text class="node-sub" x="320" y="338" text-anchor="middle">widths, heights · (n, 32) each</text>
+          <text class="node-sub" x="320" y="353" text-anchor="middle">min_bin + (1 − 32·min_bin) · softmax</text>
+
+          <!-- 5 knots -->
+          <rect class="s-area" x="180" y="396" width="280" height="64" rx="8"></rect>
+          <text class="node-title" x="320" y="418" text-anchor="middle">cumulative knots</text>
+          <text class="node-sub" x="320" y="434" text-anchor="middle">(n, 33) · last knot forced to exactly 1</text>
+          <text class="node-sub" x="320" y="449" text-anchor="middle">softmax roundoff must not reach the boundary</text>
+
+          <!-- 6 slopes -->
+          <rect class="s-area" x="180" y="492" width="280" height="64" rx="8"></rect>
+          <text class="node-title" x="320" y="514" text-anchor="middle">PCHIP slopes</text>
+          <text class="node-sub" x="320" y="530" text-anchor="middle">(n, 33) · harmonic mean of secants</text>
+          <text class="node-sub" x="320" y="545" text-anchor="middle">positive secants ⇒ positive slopes ⇒ monotone</text>
+
+          <!-- 7 bin + hermite combined -->
+          <rect class="s-accent" x="180" y="588" width="280" height="56" rx="8"></rect>
+          <text class="node-title" x="320" y="610" text-anchor="middle" id="stepTitle">bin search → t, then Hermite</text>
+          <text class="node-sub" x="320" y="626" text-anchor="middle" id="stepSub">u → x, and log|dx/du| from the same derivative</text>
+
+          <!-- side annotations -->
+          <g class="edge-label">
+            <text x="480" y="140">n points × 64 outputs</text>
+            <text x="480" y="232">the interface</text>
+            <text x="480" y="332">positive, sums to ≈ 1</text>
+            <text x="480" y="428">the CDF used for binning</text>
+            <text x="480" y="524">the local slope at each knot</text>
+          </g>
+
+          <!-- inverse loop -->
+          <g id="loopGroup" opacity="0">
+            <path class="s-loop" d="M 460 616 C 530 616 530 640 460 640" marker-end="url(#arKernel)"></path>
+            <text class="badge-text badge-kernel" x="536" y="622">× 40</text>
+            <text class="edge-label" x="536" y="636">bisection steps</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption id="flowCaption">
+        Forward: the conditioning network sets the bin widths, the knots and the slopes; a uniform sample <code>u</code> is placed in its bin and mapped through the cubic. The derivative of that same cubic is the Jacobian, so <code>log|dx/du|</code> costs nothing extra.
+      </figcaption>
+    </figure>
+  </div>
+
+  <div class="note">
+    <strong>The inverse is where the cost lives.</strong> A cubic has no closed-form inverse, so the reference solves it with 40 bisection steps and one Newton correction. In PyTorch that is roughly 40 rounds of small kernel launches — and it is why the inverse is the half the Alpaka kernel wins by 254×.
+  </div>
+</section>
+
+<!-- =============================================================== 03 ALPAKA -->
+<section id="alpaka">
+  <div class="sec-head">
+    <div class="sec-num">03</div>
+    <div>
+      <h2>How Alpaka works</h2>
+      <p class="sec-sub">One C++17 source file, compiled once per backend. The accelerator type is a template parameter, not a rewrite.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <figure>
+      <div class="diagram-scroll">
+        <svg class="diagram" viewBox="0 0 760 420" role="img" aria-label="One Alpaka kernel source is instantiated for CUDA, HIP or SYCL, and CPU through a template accelerator type, then dispatched at runtime.">
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <polygon class="mk-line" points="0,0 10,5 0,10"></polygon>
+            </marker>
+          </defs>
+
+          <!-- source -->
+          <rect class="s-ink" x="40" y="40" width="220" height="96" rx="10"></rect>
+          <text class="node-title" x="150" y="66" text-anchor="middle">cubic_spline_1d.hpp</text>
+          <text class="node-sub" x="150" y="86" text-anchor="middle">one thread per element</text>
+          <text class="node-sub" x="150" y="102" text-anchor="middle">arrays in registers</text>
+          <text class="node-sub" x="150" y="118" text-anchor="middle">no global-memory staging</text>
+
+          <!-- exec -->
+          <line class="s-line" x1="260" y1="88" x2="330" y2="88" marker-end="url(#ar2)"></line>
+
+          <rect class="s-sunk" x="336" y="52" width="180" height="72" rx="10"></rect>
+          <text class="node-sub" x="426" y="80" text-anchor="middle">alpaka::exec&lt;Acc&gt;</text>
+          <text class="node-sub" x="426" y="98" text-anchor="middle">(queue, workDiv, kernel)</text>
+          <text class="node-sub" x="426" y="114" text-anchor="middle">Acc is a template param</text>
+
+          <!-- backends -->
+          <line class="s-line" x1="516" y1="88" x2="566" y2="88"></line>
+          <line class="s-line" x1="566" y1="88" x2="566" y2="132"></line>
+
+          <line class="s-line" x1="566" y1="132" x2="600" y2="132" marker-end="url(#ar2)"></line>
+          <line class="s-line" x1="566" y1="190" x2="600" y2="190" marker-end="url(#ar2)"></line>
+          <line class="s-line" x1="566" y1="248" x2="600" y2="248" marker-end="url(#ar2)"></line>
+
+          <rect class="s-accent" x="608" y="106" width="120" height="52" rx="8"></rect>
+          <text class="node-sub" x="668" y="128" text-anchor="middle">CUDA</text>
+          <text class="node-sub" x="668" y="144" text-anchor="middle">nvcc · sm_86</text>
+
+          <rect class="s-area" x="608" y="164" width="120" height="52" rx="8"></rect>
+          <text class="node-sub" x="668" y="186" text-anchor="middle">HIP / SYCL</text>
+          <text class="node-sub" x="668" y="202" text-anchor="middle">enabled per build</text>
+
+          <rect class="s-area" x="608" y="222" width="120" height="52" rx="8"></rect>
+          <text class="node-sub" x="668" y="244" text-anchor="middle">CPU</text>
+          <text class="node-sub" x="668" y="260" text-anchor="middle">serial · OpenMP</text>
+
+          <!-- kernel body -->
+          <rect class="s-sunk" x="40" y="190" width="476" height="180" rx="10"></rect>
+          <text class="node-sub" x="58" y="214">for (auto i : alpaka::uniformElements(acc, n)) {</text>
+          <text class="node-sub" x="58" y="236">    prepare(raw + i*64, width, height, knots, slopes);</text>
+          <text class="node-sub" x="58" y="258">    idx = bin_index(value[i], knots);</text>
+          <text class="node-sub" x="58" y="280">    hermite(t, ...);        // value + derivative</text>
+          <text class="node-sub" x="58" y="302">    out[i] = x;  logdet[i] = log(dxdt) - log(w);</text>
+          <text class="node-sub" x="58" y="324">}</text>
+          <text class="node-sub" x="58" y="350">one launch, all elements, nothing staged to global memory</text>
+        </svg>
+      </div>
+      <figcaption>
+        The kernel body is written once. Changing <code>Acc</code> changes the compiler and the launch mechanism, not the algorithm — which is the whole reason MANGO uses an abstraction library instead of CUDA directly.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============================================================ 04 COMPARISON -->
+<section id="compare">
+  <div class="sec-head">
+    <div class="sec-num">04</div>
+    <div>
+      <h2>They are not alternatives</h2>
+      <p class="sec-sub">The normalizing flow is the model; Alpaka is the runtime. The real comparison is between two <em>implementations</em> of the same marginal — and it turns on one thing: how many launches per call.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <figure>
+      <div class="diagram-scroll">
+        <svg class="diagram" viewBox="0 0 760 330" role="img" aria-label="PyTorch eager issues roughly forty small kernel launches for one inverse call, while the Alpaka kernel issues one launch that evaluates every element end to end.">
+          <!-- torch row -->
+          <text class="node-title" x="40" y="44">PyTorch eager</text>
+          <text class="node-sub" x="40" y="62">one inverse call = ~40 bisection rounds</text>
+
+          <g id="torchLaunches"></g>
+
+          <text class="node-sub" x="40" y="132">each round is several small kernels; the GPU idles between them</text>
+
+          <!-- alpaka row -->
+          <text class="node-title" x="40" y="196">Alpaka kernel</text>
+          <text class="node-sub" x="40" y="214">one inverse call = one launch</text>
+
+          <rect x="40" y="230" width="680" height="34" rx="6" style="fill:var(--kernel)" opacity="0.85"></rect>
+          <text class="node-sub on-dark" x="380" y="252" text-anchor="middle">all 40 steps, for every element, inside the thread</text>
+
+          <text class="node-sub" x="40" y="292">the loop moves from the host into the kernel</text>
+        </svg>
+      </div>
+      <figcaption>
+        The same arithmetic. The difference is where the control flow lives: a host-side Python loop that synchronises between steps, or a per-thread loop that never leaves the device.
+      </figcaption>
+    </figure>
+
+    <div class="table-scroll" style="margin-top:22px">
+      <table>
+        <thead>
+          <tr><th>property</th><th>PyTorch eager</th><th>Alpaka kernel</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Where the model lives</td><td>Python, differentiable</td><td>C++17, inference only</td></tr>
+          <tr><td>Launch count, inverse</td><td class="num">~40 rounds × a few each</td><td class="num">1</td></tr>
+          <tr><td>Precision used</td><td>float32 in the pipeline</td><td class="num">float32 or float64</td></tr>
+          <tr><td>Backends</td><td>CUDA, ROCm (torch builds)</td><td class="num">CUDA, HIP, SYCL, CPU</td></tr>
+          <tr><td>Training</td><td>yes</td><td>no — inference only</td></tr>
+          <tr><td>Conditioning MLP</td><td>inside the call</td><td>outside — it takes <code>raw</code></td></tr>
+          <tr><td>Measured inverse, N=1</td><td>31.4 ms</td><td class="num win">0.12 ms · 254×</td></tr>
+          <tr><td>Measured forward, N=50k</td><td>1.39 ms</td><td class="num loss">2.48 ms · 0.6×</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Why the forward still loses.</strong> The kernel wins by removing per-call overhead. The forward has almost no overhead to remove — it is already a handful of vectorised operations — so what is left is the host→device copy of <code>raw</code>, which grows with batch size. Closing it needs device pointers, an interface change rather than a kernel one.
+  </div>
+</section>
+
+<!-- ============================================================== 05 MEASURED -->
+<section id="measured">
+  <div class="sec-head">
+    <div class="sec-num">05</div>
+    <div>
+      <h2>Where it wins, and where it does not</h2>
+      <p class="sec-sub">Speedup over PyTorch, same GPU, same dtype, like-for-like on the spline. Above the line the kernel is faster; below it, slower. Hover any point.</p>
+    </div>
+  </div>
+
+  <div class="card chart-wrap" id="chartWrap">
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--flow)"></span>inverse · log_density</span>
+      <span><span class="swatch" style="background:var(--kernel)"></span>forward · sample</span>
+    </div>
+    <div id="chart"></div>
+    <div class="tooltip" id="tip" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="table-scroll" style="margin-top:20px">
+    <table>
+      <thead>
+        <tr><th>N</th><th>inverse</th><th>forward</th><th>what it means</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="num">1</td><td class="num win">254×</td><td class="num win">10.4×</td><td>the kernel wins on both</td></tr>
+        <tr><td class="num">1 000</td><td class="num win">176×</td><td class="num win">7.1×</td><td>still both</td></tr>
+        <tr><td class="num">10 000</td><td class="num win">33×</td><td class="num win">1.3×</td><td>validation chunk size — forward is at parity</td></tr>
+        <tr><td class="num">50 000</td><td class="num win">12.7×</td><td class="num loss">0.6×</td><td>training batch — forward loses</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <strong>The honest summary.</strong> Deliverable B is validated for the inverse at every batch size, and for the forward below about ten thousand points. It is not a uniform win, and the measurements that say so are in the repository next to the ones that do not.
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>MANGO — Monte Carlo Acceleration via Normalizing Flows using GPU Optimization · DOE Genesis Mission, DE-FOA-0003612, Focus Area 14C.</p>
+  <p>Numbers from <code>RESULTS.md</code>; commands in <code>REPRODUCTION_COMMANDS.md</code>. 26 parity tests at 1e-12 (float64) and 2e-5 (float32).</p>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------- theme */
+  var root = document.documentElement;
+  var btn = document.getElementById("themeBtn");
+  var stored = null;
+  try { stored = localStorage.getItem("mango-theme"); } catch (e) {}
+  if (stored === "dark" || stored === "light") root.setAttribute("data-theme", stored);
+  btn.addEventListener("click", function () {
+    var isDark = root.getAttribute("data-theme") === "dark" ||
+      (!root.getAttribute("data-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    var next = isDark ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("mango-theme", next); } catch (e) {}
+  });
+
+  /* ------------------------------------------------------------- pipeline */
+  var STAGES = [
+    {
+      title: "Define the process",
+      body: "A JSON file names the MadGraph process, the phase-space map, and the energy range. It is the only file that changes when you add a process — unless the final-state topology is new, in which case the phase-space map needs writing too.",
+      cmd: "configs/processes/uu_ww_4l.json",
+      io: [["in", "process string, √ŝ range, held-out energies"], ["out", "nothing — this is configuration"]]
+    },
+    {
+      title: "Build the matrix element",
+      body: "MadGraph generates a standalone for the process and compiles it into a Python extension. The machine element is then called one event per Python call, which is a cost that shows up later.",
+      cmd: "python experiments/setup_madgraph_process.py \\\n    --config configs/processes/uu_ww_4l.json --mg5 mg5_aMC",
+      io: [["in", "the process card"], ["out", "generated/<proc>_standalone/ with matrix2py.pyd"]]
+    },
+    {
+      title: "Train the conditional flow",
+      body: "The flow learns to propose samples for that matrix element. Training runs in stages: seven annealing temperatures, then three importance-weighted KL rounds, then a χ² fine-tune — which, on every process measured here, does nothing.",
+      cmd: "python experiments/run_madgraph_process_conditional_copula.py \\\n    --speed-profile thorough --device cuda --output <dir>",
+      io: [["in", "the matrix element, f(x|c) only — never a target sampler"], ["out", "a checkpoint: graph, weights, marginals, metrics"]]
+    },
+    {
+      title: "Validate against Sobol",
+      body: "The trained flow is scored against an independent quasi-Monte-Carlo integral at five held-out energies. The Sobol column is hardware-independent, so it is a real reproduction check; the flow column is not, and the two are reported separately.",
+      cmd: "python experiments/validate_madgraph_process_integral.py \\\n    --checkpoint <dir>/final_model.pt --device cuda",
+      io: [["in", "the checkpoint and the matrix element"], ["out", "summary.csv: NF estimate, Sobol estimate, pull, ESS"]]
+    }
+  ];
+
+  var detail = document.getElementById("stageDetail");
+  var chips = Array.prototype.slice.call(document.querySelectorAll(".stage-btn"));
+
+  function showStage(i) {
+    chips.forEach(function (b) {
+      b.setAttribute("aria-selected", String(Number(b.dataset.stage) === i));
+    });
+    var s = STAGES[i];
+    var html = "<h3>" + s.title + "</h3><p>" + s.body + "</p>";
+    html += '<pre class="cmd-block">' + s.cmd.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</pre>";
+    html += "<dl>";
+    s.io.forEach(function (pair) {
+      html += "<dt>" + pair[0] + "</dt><dd>" + pair[1] + "</dd>";
+    });
+    html += "</dl>";
+    detail.innerHTML = html;
+  }
+
+  chips.forEach(function (b) {
+    b.addEventListener("click", function () { showStage(Number(b.dataset.stage)); });
+  });
+  showStage(0);
+
+  /* ------------------------------------------------------------ direction */
+  var fwd = document.getElementById("dirFwd");
+  var inv = document.getElementById("dirInv");
+  var loopGroup = document.getElementById("loopGroup");
+  var stepTitle = document.getElementById("stepTitle");
+  var stepSub = document.getElementById("stepSub");
+  var caption = document.getElementById("flowCaption");
+
+  function setDirection(inverse) {
+    fwd.setAttribute("aria-pressed", String(!inverse));
+    inv.setAttribute("aria-pressed", String(inverse));
+    loopGroup.setAttribute("opacity", inverse ? "1" : "0");
+    if (inverse) {
+      stepTitle.textContent = "bin search → t, then Hermite";
+      stepSub.textContent = "x → u: 40 bisection steps + one Newton correction";
+      caption.innerHTML = "Inverse: the bin is found on the <em>height</em> knots, then the cubic is solved for <code>t</code> by bracketed bisection and one Newton step. This is the expensive direction — and the one the kernel accelerates by up to 254×.";
+    } else {
+      stepTitle.textContent = "bin search → t, then Hermite";
+      stepSub.textContent = "u → x, and log|dx/du| from the same derivative";
+      caption.innerHTML = "Forward: the conditioning network sets the bin widths, the knots and the slopes; a uniform sample <code>u</code> is placed in its bin and mapped through the cubic. The derivative of that same cubic is the Jacobian, so <code>log|dx/du|</code> costs nothing extra.";
+    }
+  }
+  fwd.addEventListener("click", function () { setDirection(false); });
+  inv.addEventListener("click", function () { setDirection(true); });
+  setDirection(false);
+
+  /* ------------------------------------------------------- launch figures */
+  (function drawLaunches() {
+    var g = document.getElementById("torchLaunches");
+    var ns = "http://www.w3.org/2000/svg";
+    var w = 13, gap = 3.4, x0 = 40, y = 78, h = 22;
+    for (var i = 0; i < 40; i++) {
+      var r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", String(x0 + i * (w + gap)));
+      r.setAttribute("y", String(y));
+      r.setAttribute("width", String(w));
+      r.setAttribute("height", String(h));
+      r.setAttribute("rx", "2");
+      r.setAttribute("fill", "var(--flow)");
+      r.setAttribute("opacity", "0.75");
+      g.appendChild(r);
+    }
+    var label = document.createElementNS(ns, "text");
+    label.setAttribute("x", String(x0));
+    label.setAttribute("y", String(y - 8));
+    label.setAttribute("class", "edge-label");
+    label.textContent = "40 sequential launches";
+    g.appendChild(label);
+  })();
+
+  /* ----------------------------------------------------------------- chart */
+  (function drawChart() {
+    var W = 760, H = 330, L = 58, R = 96, T = 18, B = 46;
+    var data = [
+      { key: "inverse", label: "inverse", color: "var(--flow)",
+        pts: [[1, 254.4], [100, 233.0], [1000, 175.5], [10000, 33.4], [50000, 12.7]] },
+      { key: "forward", label: "forward", color: "var(--kernel)",
+        pts: [[1, 10.4], [100, 9.8], [1000, 7.1], [10000, 1.3], [50000, 0.6]] }
+    ];
+    var xMin = Math.log10(1), xMax = Math.log10(50000);
+    var yMin = Math.log10(0.3), yMax = Math.log10(400);
+
+    function X(v) { return L + (Math.log10(v) - xMin) / (xMax - xMin) * (W - L - R); }
+    function Y(v) { return T + (yMax - Math.log10(v)) / (yMax - yMin) * (H - T - B); }
+
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", "Speedup of the Alpaka kernel over PyTorch against batch size, for the inverse and the forward. The inverse is faster at every size; the forward crosses below parity above 10000 points.");
+
+    function el(name, attrs, text) {
+      var n = document.createElementNS(ns, name);
+      for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) n.setAttribute(k, attrs[k]);
+      if (text != null) n.textContent = text;
+      return n;
+    }
+
+    // y grid + labels
+    [0.5, 1, 3, 10, 30, 100, 300].forEach(function (v) {
+      var y = Y(v);
+      svg.appendChild(el("line", { x1: L, y1: y, x2: W - R, y2: y, stroke: "var(--line)", "stroke-width": 1 }));
+      svg.appendChild(el("text", { x: L - 10, y: y + 4, "text-anchor": "end", "class": "edge-label" },
+        v + "×"));
+    });
+
+    // parity line
+    var yp = Y(1);
+    svg.appendChild(el("line", { x1: L, y1: yp, x2: W - R, y2: yp, stroke: "var(--muted)", "stroke-width": 1.2, "stroke-dasharray": "6 5" }));
+    svg.appendChild(el("text", { x: W - R + 8, y: yp + 4, "class": "edge-label" }, "parity"));
+
+    // x ticks
+    [[1, "1"], [100, "100"], [1000, "1k"], [10000, "10k"], [50000, "50k"]].forEach(function (pair) {
+      var x = X(pair[0]);
+      svg.appendChild(el("line", { x1: x, y1: T, x2: x, y2: H - B, stroke: "var(--line)", "stroke-width": 1, opacity: "0.5" }));
+      svg.appendChild(el("text", { x: x, y: H - B + 20, "text-anchor": "middle", "class": "edge-label" }, pair[1]));
+    });
+    svg.appendChild(el("text", { x: (L + W - R) / 2, y: H - 8, "text-anchor": "middle", "class": "edge-label" }, "batch size N (log)"));
+
+    // series
+    data.forEach(function (s) {
+      var d = s.pts.map(function (p, i) { return (i === 0 ? "M" : "L") + X(p[0]) + " " + Y(p[1]); }).join(" ");
+      svg.appendChild(el("path", { d: d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    });
+
+    // points + direct labels
+    data.forEach(function (s) {
+      s.pts.forEach(function (p) {
+        svg.appendChild(el("circle", { cx: X(p[0]), cy: Y(p[1]), r: 4.5, fill: s.color, stroke: "var(--surface)", "stroke-width": 2 }));
+      });
+      var last = s.pts[s.pts.length - 1];
+      svg.appendChild(el("text", { x: X(last[0]) + 10, y: Y(last[1]) + 4, "class": "node-sub", fill: "var(--muted)" }, s.label));
+    });
+
+    document.getElementById("chart").appendChild(svg);
+
+    // hover targets
+    var wrap = document.getElementById("chartWrap");
+    var tip = document.getElementById("tip");
+    data.forEach(function (s) {
+      s.pts.forEach(function (p) {
+        var c = el("circle", { cx: X(p[0]), cy: Y(p[1]), r: 14, fill: "transparent", style: "cursor:pointer" });
+        c.addEventListener("mouseenter", function (ev) {
+          var box = wrap.getBoundingClientRect();
+          var sx = (ev.clientX - box.left);
+          var sy = (ev.clientY - box.top);
+          tip.innerHTML = "<b>N = " + p[0].toLocaleString() + "</b><br>" + s.label + ": " + p[1] + "×";
+          tip.style.left = sx + "px";
+          tip.style.top = sy + "px";
+          tip.setAttribute("data-show", "true");
+        });
+        c.addEventListener("mouseleave", function () { tip.setAttribute("data-show", "false"); });
+        svg.appendChild(c);
+      });
+    });
+  })();
+})();
+</script>
