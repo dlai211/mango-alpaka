@@ -25,6 +25,34 @@ Verified versions from the development machine (Windows 11):
 Python packages used by the tests and benchmarks: `numpy`, `torch` (CUDA
 build), `pytest`. The kernel itself does not depend on torch.
 
+### 1.1 Interpreter and torch build
+
+Every build, test and benchmark command in this repo uses the `workspace`
+conda environment:
+
+```
+C:\Users\laiji\.conda\envs\workspace\python.exe
+```
+
+It carries **`torch 2.3.0+cu121`**. Do **not** use the PATH default
+(`C:\ProgramData\anaconda3\python.exe`): its user site-packages holds
+`torch 2.3.0+cpu`, which is CPU-only and fails to import (`shm.dll`). A `+cpu`
+wheel reports `torch.cuda.is_available() == False`, so any timing taken with it
+is a CPU timing that looks like a GPU result.
+
+Check before trusting a benchmark:
+
+```cmd
+"%PY%" -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+Expected: `2.3.0+cu121 True NVIDIA GeForce RTX 3060 Laptop GPU`.
+
+The upstream repo carries the stronger check, `scripts/verify_torch_gpu.py`,
+which also runs the trained conditional marginal on both devices and requires
+float64 parity. Last run there: 18.1× on a 4096² float32 matmul, 3.6× on the
+marginal at batch 65,536, `max |x_cuda - x_cpu| = 2.0e-15`.
+
 ---
 
 ## 2. Dependencies
@@ -123,12 +151,16 @@ The DLL is copied next to the module on purpose — see §5.4.
 ## 4. Verify
 
 ```cmd
+set PY=C:\Users\laiji\.conda\envs\workspace\python.exe
 set PYTHONPATH=build\python
-python -c "import mango_alpaka_ext as m; print(m.backends())"
-python -m pytest tests\test_cubic_spline_parity.py -q
+"%PY%" -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+"%PY%" -c "import mango_alpaka_ext as m; print(m.backends())"
+"%PY%" -m pytest tests\test_cubic_spline_parity.py -q
 ```
 
-Expected: all three backends listed, and **12 passed**.
+Expected: `2.3.0+cu121 True`, all three backends listed, and **26 passed**
+(13 tests per precision). Use the `workspace` interpreter, not whatever
+`python` resolves to — see §1.1.
 
 A quick numeric check that does not need the reference repo:
 
@@ -238,6 +270,7 @@ about 15 s and a full build about 2 min on this machine (CUDA compilation of
   should work; it has not been tried.
 - **AMD / Intel backends.** Alpaka supports them; this project does not enable
   them. Adding one is a `alpaka_ACC_*` cache variable plus a dispatch case.
-- **`float32`.** The kernel computes in double, matching the evaluation path of
-  the reference. Training in float32 is not covered.
+- **The reference training loop.** It stays in the upstream repository. The
+  kernel itself supports both `float32` and `float64` (`Precision` in the
+  interface contract; 13 tests per dtype).
 - **Packaging.** `build/python` is the install location; there is no wheel.

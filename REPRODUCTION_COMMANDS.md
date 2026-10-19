@@ -74,7 +74,7 @@ PYTHONPATH="build/python" \
   /c/Users/laiji/.conda/envs/workspace/python.exe -m pytest tests/test_cubic_spline_parity.py -q
 ```
 
-Expected: `12 passed`.
+Expected: `26 passed` (13 per precision).
 
 The test needs the upstream repo. It defaults to
 `C:/Users/laiji/test/conditional-nf-integration`; override with:
@@ -201,7 +201,7 @@ hard bound** for parity.
 
 | item | expected |
 |---|---|
-| tests | `12 passed` |
+| tests | `26 passed` |
 | max |x − x_torch| | ≲ 1e-14 |
 | max |logdet − logdet_torch| | ≲ 1e-13 |
 | round trip |x→u→x| | < 1e-10 |

@@ -118,14 +118,16 @@ integral rather than noise.
   (`2e-5` in `float32`, measured),
   for forward, inverse, log-Jacobian and `log_density`, at batch sizes
   1 → 5 000, on every enabled backend.
-  See `tests/test_cubic_spline_parity.py` (12 tests).
+  See `tests/test_cubic_spline_parity.py` (26 tests: 13 per precision).
 - **Backends agree with each other** to the same tolerance.
 - **Round trip** `x → u → x` reproduces the input to `1e-10`.
 - **No silent backend fallback.** An unavailable backend raises.
 
-`float32` is not currently exposed. The reference model is `float32` in
-training and `float64` in evaluation; if a `float32` path is needed, the
-tolerance must be re-derived rather than assumed.
+`float32` is exposed since 0.2.0 and is the pipeline's dtype. Its tolerance is
+a separate, measured `2e-5`, not the `1e-12` reference; the reference model is
+`float32` in training and `float64` in evaluation, and the two are not
+interchangeable in a parity assertion. The precision is selected by the dtype
+of `raw` (§2.2).
 
 ---
 
@@ -176,7 +178,8 @@ device-pointer (zero-copy) interface would remove. Full tables in `RESULTS.md`
   decision on how the autoregressive copula receives ranks.
 - **Streams / batching policy.** Every call allocates buffers and synchronises.
   A production interface should accept caller-owned buffers and a queue.
-- **`float32`.**
+- **A `float32` training path.** The kernel computes in both dtypes; training
+  remains Python-side and is not covered here.
 - **A Python package.** The module is loaded from `build/python`; packaging is
   deliberate later, because the interface will move first.
 

@@ -19,6 +19,7 @@ read-only reference.
 | **`REPRODUCTION_COMMANDS.md`** | exact commands to regenerate every number |
 | **`RESULTS.md`** | the measurements and what they do and do not claim |
 | `docs/INTERFACE_CONTRACT.md` | the frozen Python ↔ C++ contract (Deliverable C) |
+| `docs/CODE_COMPARISON.md` | the PyTorch marginal and the Alpaka kernel, explained and shown side by side |
 | **`index.html`** | interactive anatomy: the pipeline, the flow, Alpaka, and where the kernel wins or loses |
 
 New here? Start with `Intro.md`. Rebuilding? `RUNBOOK.md`. Reproducing a
@@ -37,6 +38,7 @@ tests/benchmark_fixed_cost.py      pre-kernel fixed-cost baseline
 tests/benchmark_kernel_vs_reference.py  before/after
 tests/test_cubic_spline_parity.py  kernel vs PyTorch at 1e-12
 docs/INTERFACE_CONTRACT.md         Deliverable C's written note
+docs/CODE_COMPARISON.md            PyTorch vs Alpaka, explanation and code side by side
 ```
 
 ---
@@ -93,8 +95,9 @@ set PYTHONPATH=build/python
 python -m pytest tests/test_cubic_spline_parity.py -v
 ```
 
-12 tests: forward, inverse, log-density, round trip, contract conformance and
-cross-backend agreement, all at `1e-12` in `float64`.
+26 tests (13 per precision): forward, inverse, log-density, round trip, contract
+conformance and cross-backend agreement — at `1e-12` in `float64` and a measured
+`2e-5` in `float32`.
 
 ---
 

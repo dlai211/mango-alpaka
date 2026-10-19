@@ -118,7 +118,7 @@ boundary stable for validation.
 Deliverable B is accepted when:
 
 1. the kernel reproduces the PyTorch marginal to 1e-12 on all enabled backends
-   — **met, 12/12 tests**, and independently confirmed against a NumPy
+   — **met, 26/26 tests (13 per precision)**, and independently confirmed against a NumPy
    implementation written from the formulas (1e-15 to 1e-13 inside the model's
    logit range);
 2. the fixed per-call cost is measured before and after, **on the same device
@@ -211,7 +211,7 @@ not been written.
 
 | item | state |
 |---|---|
-| Deliverable B — Alpaka kernel | **complete**, 12/12 parity tests at 1e-12 |
+| Deliverable B — Alpaka kernel | **complete**, 26/26 parity tests (13 per precision) |
 | Deliverable C — interface + contract | **complete** |
 | `float32` support | **done** (0.2.0) — 2.5–3.9× faster than `float64` in the same code |
 | Inverse (`log_density`) speedup | **validated** — 254× at N=1, 12.7× at N=50 000, like-for-like |
